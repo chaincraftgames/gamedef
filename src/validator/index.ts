@@ -1,10 +1,16 @@
 /**
  * ChainCraft GameDef Validator
  *
- * Runs a suite of validation passes over a complete ModularGameSpec:
+ * Runs a suite of SpecValidator passes over a complete ModularGameSpec.
+ * Each validator is a focused, single-responsibility check. Add a new
+ * validator by implementing the SpecValidator interface and registering
+ * it in the VALIDATORS list below.
  *
- *   1. Schema validation — each module parsed through its Zod schema
- *   2. Reference validation — cross-module forward references exist
+ * Validation order:
+ *   1. Schema validation  — Zod parse (always first; others assume a valid shape)
+ *   2. ResolveRefs        — cross-module forward reference resolution
+ *   3. DuplicateIds       — uniqueness of IDs within each module and flow tree
+ *   4. FlowIntegrity      — loop termination and flow structural rules
  *
  * Usage:
  *   import { validate } from "@chaincraft/gamedef/validator";
@@ -14,44 +20,46 @@
 
 import { ModularGameSpecSchema } from "#gamedef/index.js";
 import type { ModularGameSpec } from "#gamedef/index.js";
-import { validateReferences } from "./reference-validator.js";
+import type { SpecValidator } from "./types.js";
+import { ResolveRefsValidator } from "./validators/resolve-refs.js";
+import { DuplicateIdsValidator } from "./validators/duplicate-ids.js";
+import { FlowIntegrityValidator } from "./validators/flow-integrity.js";
 
-export interface ValidationError {
-  /** Dot-path to the field that failed, e.g. "actions.actions[0].effects[1]" */
-  path: string;
-  /** Human-readable description of the failure */
-  message: string;
-}
+// Re-export types so consumers only need one import path.
+export type { ValidationError, ValidationResult, SpecValidator } from "./types.js";
 
-export interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-  /** The parsed + coerced spec if schema validation passed, undefined otherwise */
-  spec?: ModularGameSpec;
-}
+/**
+ * Ordered list of spec validators run after schema validation passes.
+ * All validators run and their errors are collected together — no early exit.
+ * To add a new validator: implement SpecValidator and append an instance here.
+ */
+const VALIDATORS: SpecValidator[] = [
+  new ResolveRefsValidator(),
+  new DuplicateIdsValidator(),
+  new FlowIntegrityValidator(),
+];
 
 /**
  * Validate a raw (unknown) game spec object against the full modular spec schema
- * and all cross-module reference rules.
+ * and all registered SpecValidators.
  *
  * @param raw - The raw object to validate (parsed from JSON/YAML, AI output, etc.)
  */
-export function validate(raw: unknown): ValidationResult {
-  // --- Pass 1: Schema validation ---
+export function validate(raw: unknown): import("./types.js").ValidationResult {
+  // Pass 1: Zod schema validation — must succeed before any SpecValidator runs.
   const parsed = ModularGameSpecSchema.safeParse(raw);
   if (!parsed.success) {
-    const errors: ValidationError[] = parsed.error.issues.map((issue) => ({
+    const errors = parsed.error.issues.map((issue) => ({
       path: issue.path.join("."),
       message: issue.message,
     }));
     return { valid: false, errors };
   }
 
-  // --- Pass 2: Cross-module reference validation ---
-  const refErrors = validateReferences(parsed.data);
-  if (refErrors.length > 0) {
-    return { valid: false, errors: refErrors };
-  }
+  // Passes 2+: run all registered SpecValidators and collect every error.
+  const errors = VALIDATORS.flatMap((v) => v.validate(parsed.data));
+  if (errors.length > 0) return { valid: false, errors };
 
-  return { valid: true, errors: [], spec: parsed.data };
+  return { valid: true, errors: [], spec: parsed.data as ModularGameSpec };
 }
+

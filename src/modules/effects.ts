@@ -555,6 +555,253 @@ export const ProseEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Message effect
+// ---------------------------------------------------------------------------
+
+/**
+ * Who receives a message. The literal `actor` means the player whose turn/action
+ * triggered this effect; `all` broadcasts to all players; `opponents` sends to
+ * every player except the actor; `role:<id>` targets all players with the named
+ * role; any other string is treated as a specific player ID.
+ *
+ * @example
+ * ```yaml
+ * to: actor           # confirmation to the player who just acted
+ * to: all             # broadcast to everyone
+ * to: opponents       # notify opponents without telling the acting player
+ * to: "role:mafia"    # send only to players with the mafia role
+ * to: "player1"       # direct to a specific player by ID
+ * ```
+ */
+export const MessageRecipientSchema = z
+  .string()
+  .describe(
+    "Who receives the message. " +
+      "'actor': the player whose action triggered this effect. " +
+      "'all': every active player. " +
+      "'opponents': all players except the actor. " +
+      "'role:<id>': all players assigned the named role (e.g., 'role:dealer'). " +
+      "Any other string: a specific player ID. " +
+      "For private messages use visibility: private. For broadcast use visibility: public (default).",
+  );
+
+/**
+ * @example Confirmation after player creates a weapon
+ * ```yaml
+ * id: confirm-weapon
+ * kind: message
+ * to: actor
+ * template: "Your weapon '{{input.weaponDescription}}' has been registered."
+ * visibility: private
+ * ```
+ * @example Phase announcement to all
+ * ```yaml
+ * id: announce-battle
+ * kind: message
+ * to: all
+ * template: "Round {{state.game.property.currentRound}} begins — select your weapon!"
+ * ```
+ */
+export const MessageEffectSchema = z
+  .object({
+    kind: z.literal("message"),
+    to: MessageRecipientSchema,
+    template: z
+      .string()
+      .describe(
+        "Handlebars template string for the message body. " +
+          "Available references: {{input.<id>}} for action inputs, " +
+          "{{state.game.property.<id>}} and {{state.players.<playerId>.property.<id>}} " +
+          "for game state. The engine resolves templates at execution time.",
+      ),
+    visibility: z
+      .enum(["public", "private"])
+      .default("public")
+      .describe(
+        "Whether this message is visible to all players or only the recipient(s). " +
+          "'public': message is visible in the game log for all players. " +
+          "'private': message is delivered only to the 'to' target(s). " +
+          "Defaults to 'public'.",
+      ),
+  })
+  .describe(
+    "Delivers a deterministic text message to one or more players. " +
+      "No state mutation — output only. " +
+      "For non-text/visual games, engines that don't support messaging skip this effect. " +
+      "Use for action confirmations, phase announcements, and static flavor text. " +
+      "For AI-generated text use kind: llm-effect.",
+  );
+
+// ---------------------------------------------------------------------------
+// LLM effect
+// ---------------------------------------------------------------------------
+
+/**
+ * One named output produced by an llm-effect call. The `field` name enters an
+ * ephemeral per-invocation context (accessible as `{{llm.<field>}}` in subsequent
+ * template strings). Optionally delivered as a player message and/or written to
+ * a state path.
+ *
+ * At least one of `message` or `stateWrite` must be present — an output that
+ * does neither is meaningless.
+ *
+ * @example Round narrative delivered as public message
+ * ```yaml
+ * field: roundNarrative
+ * message:
+ *   to: all
+ *   visibility: public
+ * ```
+ * @example Winner written to state for follow-on effects to read
+ * ```yaml
+ * field: roundWinner
+ * stateWrite: game.property.roundWinner
+ * ```
+ * @example Per-player private reveal
+ * ```yaml
+ * field: player1Reveal
+ * message:
+ *   to: player1
+ *   visibility: private
+ * ```
+ */
+export const LlmOutputSchema = z
+  .object({
+    field: z
+      .string()
+      .describe(
+        "Name of this output in the LLM's structured response. " +
+          "Enters ephemeral invocation context as {{llm.<field>}} for use in templates.",
+      ),
+    message: z
+      .object({
+        to: MessageRecipientSchema,
+        visibility: z
+          .enum(["public", "private"])
+          .default("public")
+          .describe(
+            "'public': visible in game log for all players. " +
+              "'private': delivered only to the 'to' target(s). Defaults to 'public'.",
+          ),
+      })
+      .optional()
+      .describe(
+        "If present, deliver this field as a player message. " +
+          "The engine uses the LLM's raw text for this field as the message body.",
+      ),
+    stateWrite: z
+      .string()
+      .optional()
+      .describe(
+        "Dot-path into game state where this output should be written " +
+          "(e.g., 'game.property.roundWinner'). " +
+          "The LLM must return a value parseable for the target state field's type. " +
+          "Engine applies the write after the LLM call completes.",
+      ),
+  })
+  .describe(
+    "One named output field from an llm-effect call. " +
+      "At least one of 'message' or 'stateWrite' must be present.",
+  );
+
+/**
+ * @example Opening announcement broadcast to all (Absurd Armaments initialize_game)
+ * ```yaml
+ * id: generate-opening
+ * kind: llm-effect
+ * prompt:
+ *   rules:
+ *     - "Use enthusiastic game-show announcer style with obnoxious energy"
+ *     - "Welcome both players by name"
+ *   computation: >
+ *     Create a boisterous opening announcement welcoming both players and
+ *     building excitement for the weapon battle.
+ * outputs:
+ *   - field: openingAnnouncement
+ *     message:
+ *       to: all
+ *       visibility: public
+ * ```
+ * @example Round resolution — compute winner AND narrate (Absurd Armaments match_continues)
+ * ```yaml
+ * id: resolve-round
+ * kind: llm-effect
+ * prompt:
+ *   rules:
+ *     - "Rock beats scissors, scissors beats paper, paper beats rock"
+ *     - "Generate 2-4 sentence narrative with boisterous announcer style"
+ *     - "Reference both weapons by name"
+ *   computation: >
+ *     Compare selected weapons using their RPS mappings. Determine the winner.
+ *     Generate round narrative. If includeReversal is true, build dramatic tension
+ *     before revealing the outcome.
+ * outputs:
+ *   - field: roundWinner
+ *     stateWrite: game.property.roundWinner
+ *   - field: roundNarrative
+ *     message:
+ *       to: all
+ *       visibility: public
+ * ```
+ * @example Per-player private reveal (Absurd Armaments reveal_complete)
+ * ```yaml
+ * id: generate-reveals
+ * kind: llm-effect
+ * prompt:
+ *   computation: >
+ *     Create a unique reveal for each player showcasing their opponent's weapons.
+ * outputs:
+ *   - field: player1Reveal
+ *     message:
+ *       to: player1
+ *       visibility: private
+ *   - field: player2Reveal
+ *     message:
+ *       to: player2
+ *       visibility: private
+ * ```
+ */
+export const LlmEffectSchema = z
+  .object({
+    kind: z.literal("llm-effect"),
+    prompt: z
+      .object({
+        rules: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Ordered list of style, tone, and constraint rules for the LLM. " +
+              "Applied before the computation directive. Use for: narrative style, " +
+              "game rule reminders, output format requirements.",
+          ),
+        computation: z
+          .string()
+          .describe(
+            "What the LLM should compute, decide, or generate. " +
+              "Be specific about what each output field should contain. " +
+              "References to game state are resolved by the engine before the call.",
+          ),
+      })
+      .describe("Prompt directives for the LLM invocation."),
+    outputs: z
+      .array(LlmOutputSchema)
+      .min(1)
+      .describe(
+        "Named output fields the LLM must return in its structured response. " +
+          "Each field is either delivered as a player message, written to game state, or both. " +
+          "The engine marshals the LLM's JSON response into these fields automatically.",
+      ),
+  })
+  .describe(
+    "Calls an LLM and distributes its structured outputs as player messages and/or state writes. " +
+      "Use for AI-generated narrative, adjudication of ambiguous outcomes, or NPC decisions. " +
+      "For non-text games: outputs with only 'message' are skipped; outputs with 'stateWrite' " +
+      "are always applied (the LLM is called if any stateWrite output exists). " +
+      "Separation of concerns: prefer computing deterministic outcomes in primitive effects and " +
+      "using llm-effect only for narration — this keeps game logic testable without LLM mocks.",
+  );
+
+// ---------------------------------------------------------------------------
 // Cancel effect
 // ---------------------------------------------------------------------------
 
@@ -606,6 +853,8 @@ export const NamedEffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema.extend(namedEffectBase),
   ProseEffectSchema.extend(namedEffectBase),
   CancelEffectSchema.extend(namedEffectBase),
+  MessageEffectSchema.extend(namedEffectBase),
+  LlmEffectSchema.extend(namedEffectBase),
 ]).describe(
   "A named, concrete, reusable effect stored in the effects module. " +
     "Always fully self-contained — all values are literal. " +
@@ -650,6 +899,8 @@ export const EffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema,
   ProseEffectSchema,
   CancelEffectSchema,
+  MessageEffectSchema,
+  LlmEffectSchema,
 ]);
 
 /**
@@ -726,6 +977,10 @@ export type RollEffect = z.infer<typeof RollEffectSchema>;
 export type OrientEffect = z.infer<typeof OrientEffectSchema>;
 export type ProseEffect = z.infer<typeof ProseEffectSchema>;
 export type CancelEffect = z.infer<typeof CancelEffectSchema>;
+export type MessageRecipient = z.infer<typeof MessageRecipientSchema>;
+export type MessageEffect = z.infer<typeof MessageEffectSchema>;
+export type LlmOutput = z.infer<typeof LlmOutputSchema>;
+export type LlmEffect = z.infer<typeof LlmEffectSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
 export type NamedEffect = z.infer<typeof NamedEffectSchema>;
 export type EffectsModule = z.infer<typeof EffectsModuleSchema>;

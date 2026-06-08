@@ -75,10 +75,14 @@ See `src/mechanics/WISHLIST.md` for mechanics in design.
 
 ## Validator
 
-The validator runs two passes over a complete spec:
+The validator runs schema validation first, then a list of modular `SpecValidator` passes:
 
-1. **Schema validation** — each module parsed through its Zod schema
-2. **Reference validation** — cross-module forward references are resolved
+1. **Schema validation** — Zod parse of each module (always first)
+2. **ResolveRefs** — cross-module forward reference resolution
+3. **DuplicateIds** — uniqueness of IDs within each module and the flow tree
+4. **FlowIntegrity** — loop termination and flow structural rules
+
+To add a new validator: implement `SpecValidator` in `src/validator/validators/` and append an instance to the `VALIDATORS` list in `src/validator/index.ts`.
 
 ```ts
 import { validate } from "@chaincraft/gamedef/validator";
@@ -139,8 +143,12 @@ src/
     trump.ts
     WISHLIST.md         # mechanics in design / on the roadmap
   validator/
-    index.ts            # validate(raw) → ValidationResult
-    reference-validator.ts  # cross-module reference checks
+    index.ts            # validate(raw) → ValidationResult; VALIDATORS list
+    types.ts            # SpecValidator interface, ValidationError, ValidationResult
+    validators/         # one file per validator — implement SpecValidator, register in index.ts
+      resolve-refs.ts   # Pass 2: cross-module forward reference resolution
+      duplicate-ids.ts  # Pass 3: duplicate ID detection (modules + flow tree)
+      flow-integrity.ts # Pass 4: loop termination and flow structural rules
 tests/
   spec/                 # schema tests (one file per module)
   validator/            # validator integration tests
