@@ -1,0 +1,334 @@
+/**
+ * Parse tests for mechanic schemas.
+ *
+ * Exercises:
+ *   - ChargesMechanicSchema (piece-level)
+ *   - ConversionMechanicSchema (piece-level)
+ *   - ScoreTrackMechanicSchema (game-level)
+ *   - TrumpMechanicSchema (game-level)
+ *   - PieceMechanicSchema union
+ *   - GameMechanicSchema union
+ */
+
+import {
+  ChargesMechanicSchema,
+  ConversionMechanicSchema,
+  ScoreTrackMechanicSchema,
+  TrumpMechanicSchema,
+  PieceMechanicSchema,
+  GameMechanicSchema,
+} from "#gamedef/mechanics/index.js";
+
+function okCharges(data: unknown) {
+  const r = ChargesMechanicSchema.safeParse(data);
+  if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
+  return r.data;
+}
+function okConversion(data: unknown) {
+  const r = ConversionMechanicSchema.safeParse(data);
+  if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
+  return r.data;
+}
+function okScoreTrack(data: unknown) {
+  const r = ScoreTrackMechanicSchema.safeParse(data);
+  if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
+  return r.data;
+}
+function okTrump(data: unknown) {
+  const r = TrumpMechanicSchema.safeParse(data);
+  if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
+  return r.data;
+}
+function fail(schema: { safeParse: (d: unknown) => { success: boolean } }, data: unknown) {
+  expect(schema.safeParse(data).success).toBe(false);
+}
+
+// ---------------------------------------------------------------------------
+// ChargesMechanicSchema
+// ---------------------------------------------------------------------------
+
+describe("ChargesMechanicSchema", () => {
+  const base = {
+    kind: "chaincraft:charges",
+    slotId: "mygame:energy-ability",
+    chargeType: "energy-counter",
+    maxCharges: 3,
+    count: 2,
+    action: "convert-ore-to-gold",
+  };
+
+  it("parses minimal valid charges mechanic", () => {
+    const r = okCharges(base);
+    expect(r.kind).toBe("chaincraft:charges");
+    expect(r.slotId).toBe("mygame:energy-ability");
+    expect(r.chargeType).toBe("energy-counter");
+    expect(r.maxCharges).toBe(3);
+    expect(r.count).toBe(2);
+    expect(r.action).toBe("convert-ore-to-gold");
+  });
+
+  it("defaults depleteTo to game:unassigned", () => {
+    const r = okCharges(base);
+    expect(r.depleteTo).toBe("game:unassigned");
+  });
+
+  it("accepts explicit depleteTo inventory", () => {
+    const r = okCharges({ ...base, depleteTo: "charge-discard" });
+    expect(r.depleteTo).toBe("charge-discard");
+  });
+
+  it("accepts optional label", () => {
+    const r = okCharges({ ...base, label: "Energy Ability" });
+    expect(r.label).toBe("Energy Ability");
+  });
+
+  it("accepts availableInSubflows", () => {
+    const r = okCharges({ ...base, availableInSubflows: ["action-phase"] });
+    expect(r.availableInSubflows).toEqual(["action-phase"]);
+  });
+
+  it("rejects non-namespaced slotId", () => {
+    fail(ChargesMechanicSchema, { ...base, slotId: "no-namespace" });
+  });
+
+  it("rejects count < 1", () => {
+    fail(ChargesMechanicSchema, { ...base, count: 0 });
+  });
+
+  it("rejects maxCharges < 1", () => {
+    fail(ChargesMechanicSchema, { ...base, maxCharges: 0 });
+  });
+
+  it("rejects missing action", () => {
+    const { action: _, ...noAction } = base;
+    fail(ChargesMechanicSchema, noAction);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ConversionMechanicSchema
+// ---------------------------------------------------------------------------
+
+describe("ConversionMechanicSchema", () => {
+  const base = {
+    kind: "chaincraft:conversion",
+    slotId: "mygame:smelt",
+    sources: [{ inventory: "ore-storage", count: 2 }],
+    targets: [{ inventory: "ingot-storage", count: 1 }],
+  };
+
+  it("parses minimal valid conversion mechanic", () => {
+    const r = okConversion(base);
+    expect(r.kind).toBe("chaincraft:conversion");
+    expect(r.slotId).toBe("mygame:smelt");
+    expect(r.sources).toHaveLength(1);
+    expect(r.targets).toHaveLength(1);
+  });
+
+  it("parses many-to-many conversion", () => {
+    const r = okConversion({
+      kind: "chaincraft:conversion",
+      slotId: "mygame:alchemise",
+      sources: [
+        { inventory: "fire-essence", count: 1 },
+        { inventory: "water-essence", count: 1 },
+      ],
+      targets: [
+        { inventory: "steam-tokens", count: 1 },
+        { inventory: "residue", count: 1 },
+      ],
+    });
+    expect(r.sources).toHaveLength(2);
+    expect(r.targets).toHaveLength(2);
+  });
+
+  it("accepts optional label", () => {
+    const r = okConversion({ ...base, label: "Smelt Ore" });
+    expect(r.label).toBe("Smelt Ore");
+  });
+
+  it("accepts availableInSubflows", () => {
+    const r = okConversion({ ...base, availableInSubflows: ["action-phase"] });
+    expect(r.availableInSubflows).toEqual(["action-phase"]);
+  });
+
+  it("rejects non-namespaced slotId", () => {
+    fail(ConversionMechanicSchema, { ...base, slotId: "no-namespace" });
+  });
+
+  it("rejects empty sources array", () => {
+    fail(ConversionMechanicSchema, { ...base, sources: [] });
+  });
+
+  it("rejects empty targets array", () => {
+    fail(ConversionMechanicSchema, { ...base, targets: [] });
+  });
+
+  it("rejects leg with count < 1", () => {
+    fail(ConversionMechanicSchema, {
+      ...base,
+      sources: [{ inventory: "ore-storage", count: 0 }],
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ScoreTrackMechanicSchema
+// ---------------------------------------------------------------------------
+
+describe("ScoreTrackMechanicSchema", () => {
+  const base = {
+    kind: "chaincraft:score-track",
+    trackLength: 10,
+    scoringProperty: "score",
+    scope: "player",
+  };
+
+  it("parses minimal valid score track", () => {
+    const r = okScoreTrack(base);
+    expect(r.kind).toBe("chaincraft:score-track");
+    expect(r.trackLength).toBe(10);
+    expect(r.scoringProperty).toBe("score");
+    expect(r.scope).toBe("player");
+  });
+
+  it("accepts optional id for multi-track games", () => {
+    const r = okScoreTrack({ ...base, id: "main-score" });
+    expect(r.id).toBe("main-score");
+  });
+
+  it("accepts team scope", () => {
+    const r = okScoreTrack({ ...base, scope: "team" });
+    expect(r.scope).toBe("team");
+  });
+
+  it("accepts winAt with finalRound", () => {
+    const r = okScoreTrack({ ...base, winAt: 10, finalRound: true });
+    expect(r.winAt).toBe(10);
+    expect(r.finalRound).toBe(true);
+  });
+
+  it("winAt omitted by default", () => {
+    const r = okScoreTrack(base);
+    expect(r.winAt).toBeUndefined();
+  });
+
+  it("rejects trackLength < 2", () => {
+    fail(ScoreTrackMechanicSchema, { ...base, trackLength: 1 });
+  });
+
+  it("rejects invalid scope", () => {
+    fail(ScoreTrackMechanicSchema, { ...base, scope: "game" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TrumpMechanicSchema
+// ---------------------------------------------------------------------------
+
+describe("TrumpMechanicSchema", () => {
+  const base = {
+    kind: "chaincraft:trump",
+    suitProperty: "suit",
+    rankProperty: "rank",
+    rankOrder: [2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K", "A"],
+    evaluationInventory: "trick-pile",
+  };
+
+  it("parses minimal trump mechanic (no-trump mode)", () => {
+    const r = okTrump(base);
+    expect(r.kind).toBe("chaincraft:trump");
+    expect(r.evaluationInventory).toBe("trick-pile");
+    expect(r.trumpSuit).toBeUndefined();
+  });
+
+  it("accepts literal trump suit (Spades)", () => {
+    const r = okTrump({ ...base, trumpSuit: "spades" });
+    expect(r.trumpSuit).toBe("spades");
+  });
+
+  it("accepts dynamic trump suit via JsonLogic", () => {
+    const r = okTrump({ ...base, trumpSuit: { var: "game.property.declaredTrump" } });
+    expect(r.trumpSuit).toEqual({ var: "game.property.declaredTrump" });
+  });
+
+  it("accepts mixed string/number rankOrder", () => {
+    const r = okTrump(base);
+    expect(r.rankOrder).toHaveLength(13);
+  });
+
+  it("rejects rankOrder with fewer than 2 entries", () => {
+    fail(TrumpMechanicSchema, { ...base, rankOrder: ["A"] });
+  });
+
+  it("rejects missing evaluationInventory", () => {
+    const { evaluationInventory: _, ...noInv } = base;
+    fail(TrumpMechanicSchema, noInv);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PieceMechanicSchema union
+// ---------------------------------------------------------------------------
+
+describe("PieceMechanicSchema (union)", () => {
+  it("dispatches chaincraft:charges", () => {
+    const r = PieceMechanicSchema.parse({
+      kind: "chaincraft:charges",
+      slotId: "mygame:tap",
+      chargeType: "readiness-token",
+      maxCharges: 1,
+      count: 1,
+      action: "deal-damage",
+    });
+    expect(r.kind).toBe("chaincraft:charges");
+  });
+
+  it("dispatches chaincraft:conversion", () => {
+    const r = PieceMechanicSchema.parse({
+      kind: "chaincraft:conversion",
+      slotId: "mygame:craft",
+      sources: [{ inventory: "wood", count: 2 }],
+      targets: [{ inventory: "plank", count: 1 }],
+    });
+    expect(r.kind).toBe("chaincraft:conversion");
+  });
+
+  it("rejects unknown kind", () => {
+    expect(PieceMechanicSchema.safeParse({ kind: "custom:unknown" }).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GameMechanicSchema union
+// ---------------------------------------------------------------------------
+
+describe("GameMechanicSchema (union)", () => {
+  it("dispatches chaincraft:score-track", () => {
+    const r = GameMechanicSchema.parse({
+      kind: "chaincraft:score-track",
+      trackLength: 15,
+      scoringProperty: "vp",
+      scope: "player",
+      winAt: 10,
+      finalRound: true,
+    });
+    expect(r.kind).toBe("chaincraft:score-track");
+  });
+
+  it("dispatches chaincraft:trump", () => {
+    const r = GameMechanicSchema.parse({
+      kind: "chaincraft:trump",
+      suitProperty: "suit",
+      rankProperty: "rank",
+      rankOrder: ["9", "10", "J", "Q", "K", "A"],
+      trumpSuit: { var: "game.property.trumpSuit" },
+      evaluationInventory: "trick-pile",
+    });
+    expect(r.kind).toBe("chaincraft:trump");
+  });
+
+  it("rejects unknown kind", () => {
+    expect(GameMechanicSchema.safeParse({ kind: "chaincraft:auction" }).success).toBe(false);
+  });
+});
