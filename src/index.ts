@@ -8,6 +8,7 @@
  *   common                                      (no deps — shared primitives)
  *   metadata, players, gamepiece-types          (no deps)
  *   → inventories                               (depends on: gamepiece-types)
+ *   → state                                     (depends on: gamepiece-types)
  *   → effects                                   (depends on: gamepiece-types, inventories)
  *   → actions                                   (depends on: gamepiece-types, players, effects)
  *   → flow                                      (depends on: actions, players, effects)
@@ -29,6 +30,7 @@ export * from "#gamedef/modules/metadata.js";
 export * from "#gamedef/modules/players.js";
 export * from "#gamedef/modules/gamepiece-types.js";
 export * from "#gamedef/modules/inventories.js";
+export * from "#gamedef/modules/state.js";
 export * from "#gamedef/modules/effects.js";
 export * from "#gamedef/modules/actions.js";
 export * from "#gamedef/modules/flow.js";
@@ -46,6 +48,7 @@ import { MetadataModuleSchema } from "#gamedef/modules/metadata.js";
 import { PlayersModuleSchema } from "#gamedef/modules/players.js";
 import { GamepieceTypesModuleSchema } from "#gamedef/modules/gamepiece-types.js";
 import { InventoriesModuleSchema } from "#gamedef/modules/inventories.js";
+import { StateModuleSchema } from "#gamedef/modules/state.js";
 import { EffectsModuleSchema } from "#gamedef/modules/effects.js";
 import { ActionsModuleSchema } from "#gamedef/modules/actions.js";
 import { FlowModuleSchema } from "#gamedef/modules/flow.js";
@@ -82,6 +85,10 @@ export const ModularGameSpecSchema = z
     ),
     inventories: InventoriesModuleSchema.optional().describe(
       "Inventory type declarations — structure, scope, capacity, and visibility.",
+    ),
+    state: StateModuleSchema.optional().describe(
+      "Abstract state declarations — game and per-player properties with no physical " +
+        "gamepiece representation. Mutated by set-state effects.",
     ),
     effects: EffectsModuleSchema.optional().describe(
       "Named reusable effects — referenced by actions and flow hooks.",

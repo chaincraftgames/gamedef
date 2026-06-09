@@ -27,12 +27,11 @@ function fail(data: unknown) {
   expect(result.success).toBe(false);
 }
 
-// Wrap a single child node in a minimal root loop with endCondition
+// Wrap a single child node in a minimal game root
 function baseLoop(child: any): any {
   return {
     root: {
-      kind: "loop",
-      endCondition: { var: "game.state.done" },
+      kind: "game",
       children: [child],
     },
   };
@@ -45,8 +44,7 @@ function baseLoop(child: any): any {
 describe("FlowModuleSchema — Liar's Dice", () => {
   const liarsFlow = {
     root: {
-      kind: "loop",
-      endCondition: { "<=": [{ var: "game.state.activePlayers" }, 1] },
+      kind: "game",
       hooks: { onEnter: [{ ref: "deal-dice" }] },
       interruptWindows: [
         {
@@ -60,17 +58,23 @@ describe("FlowModuleSchema — Liar's Dice", () => {
       ],
       children: [
         {
-          kind: "turn",
-          actor: "active-player",
-          turnOrder: { kind: "seat", direction: "clockwise" },
-          grammar: {
-            kind: "choice",
-            passable: true,
-            options: [
-              { kind: "action", ref: "make-bid" },
-              { kind: "action", ref: "challenge" },
-            ],
-          },
+          kind: "loop",
+          endCondition: { "<=": [{ var: "game.state.activePlayers" }, 1] },
+          children: [
+            {
+              kind: "turn",
+              actor: "active-player",
+              turnOrder: { kind: "seat", direction: "clockwise" },
+              grammar: {
+                kind: "choice",
+                passable: true,
+                options: [
+                  { kind: "action", ref: "make-bid" },
+                  { kind: "action", ref: "challenge" },
+                ],
+              },
+            },
+          ],
         },
       ],
     },
@@ -78,7 +82,7 @@ describe("FlowModuleSchema — Liar's Dice", () => {
 
   it("parses a valid Liar's Dice flow", () => {
     const result = ok(liarsFlow);
-    expect(result.root.kind).toBe("loop");
+    expect(result.root.kind).toBe("game");
   });
 
   it("preserves interrupt windows on the loop node", () => {
@@ -92,7 +96,7 @@ describe("FlowModuleSchema — Liar's Dice", () => {
     const result = ok(liarsFlow);
     const root = result.root as any;
     expect(root.children).toHaveLength(1);
-    expect(root.children[0].kind).toBe("turn");
+    expect(root.children[0].kind).toBe("loop");
   });
 });
 
@@ -103,42 +107,47 @@ describe("FlowModuleSchema — Liar's Dice", () => {
 describe("FlowModuleSchema — Werewolf", () => {
   const werewolfFlow = {
     root: {
-      kind: "loop",
-      endCondition: { var: "game.state.gameOver" },
+      kind: "game",
       children: [
         {
-          kind: "simultaneous",
-          id: "night",
-          label: "Night Phase",
-          actor: { roles: ["villager", "mafia"] },
-          grammar: {
-            kind: "slot",
-            inventory: "role-card",
-            slot: "night-action",
-            select: "all",
-          },
-        },
-        {
-          kind: "simultaneous",
-          id: "day-discussion",
-          label: "Discussion",
-          actor: "all-players",
-          endCondition: "all-passed",
-          grammar: {
-            kind: "choice",
-            passable: true,
-            options: [{ kind: "action", ref: "accuse-player" }],
-          },
-        },
-        {
-          kind: "simultaneous",
-          id: "day-vote",
-          label: "Vote",
-          actor: "all-players",
-          grammar: { kind: "action", ref: "vote-eliminate" },
-          hooks: {
-            onComplete: [{ ref: "reveal-eliminated" }, { ref: "remove-eliminated" }],
-          },
+          kind: "loop",
+          endCondition: { var: "game.state.gameOver" },
+          children: [
+            {
+              kind: "simultaneous",
+              id: "night",
+              label: "Night Phase",
+              actor: { roles: ["villager", "mafia"] },
+              grammar: {
+                kind: "slot",
+                inventory: "role-card",
+                slot: "night-action",
+                select: "all",
+              },
+            },
+            {
+              kind: "simultaneous",
+              id: "day-discussion",
+              label: "Discussion",
+              actor: "all-players",
+              endCondition: "all-passed",
+              grammar: {
+                kind: "choice",
+                passable: true,
+                options: [{ kind: "action", ref: "accuse-player" }],
+              },
+            },
+            {
+              kind: "simultaneous",
+              id: "day-vote",
+              label: "Vote",
+              actor: "all-players",
+              grammar: { kind: "action", ref: "vote-eliminate" },
+              hooks: {
+                onComplete: [{ ref: "reveal-eliminated" }, { ref: "remove-eliminated" }],
+              },
+            },
+          ],
         },
       ],
     },
@@ -146,18 +155,13 @@ describe("FlowModuleSchema — Werewolf", () => {
 
   it("parses a valid Werewolf flow", () => {
     const result = ok(werewolfFlow);
-    expect(result.root.kind).toBe("loop");
-  });
-
-  it("parses simultaneous with actor: { roles }", () => {
-    const result = ok(werewolfFlow);
-    const night = (result.root as any).children[0];
+    const night = (result.root as any).children[0].children[0];
     expect(night.actor.roles).toContain("villager");
   });
 
   it("parses endCondition: 'all-passed' on simultaneous", () => {
     const result = ok(werewolfFlow);
-    const discussion = (result.root as any).children[1];
+    const discussion = (result.root as any).children[0].children[1];
     expect(discussion.endCondition).toBe("all-passed");
   });
 });
@@ -170,70 +174,72 @@ describe("FlowModuleSchema — Loop exit", () => {
   it("parses loop with count", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        count: 5,
-        children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }],
+        kind: "game",
+        children: [{ kind: "loop", count: 5, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
       },
     });
-    expect((result.root as any).count).toBe(5);
+    expect((result.root as any).children[0].count).toBe(5);
   });
 
   it("parses loop with count: 1 (single round)", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        count: 1,
-        children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }],
+        kind: "game",
+        children: [{ kind: "loop", count: 1, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
       },
     });
-    expect((result.root as any).count).toBe(1);
+    expect((result.root as any).children[0].count).toBe(1);
   });
 
   it("parses loop with JSONLogic endCondition", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        endCondition: { ">=": [{ var: "game.property.round" }, 5] },
-        children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }],
+        kind: "game",
+        children: [{ kind: "loop", endCondition: { ">=": [{ var: "game.property.round" }, 5] }, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
       },
     });
-    expect((result.root as any).endCondition).toBeDefined();
+    expect((result.root as any).children[0].endCondition).toBeDefined();
   });
 
   it("parses loop with endCondition: 'until-pass'", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        endCondition: "all-passed",
-        children: [
-          {
-            kind: "simultaneous",
-            actor: "all-players",
-            grammar: { kind: "choice", passable: true, options: [{ kind: "action", ref: "noop" }] },
-          },
-        ],
+        kind: "game",
+        children: [{
+          kind: "loop",
+          endCondition: "all-passed",
+          children: [
+            {
+              kind: "simultaneous",
+              actor: "all-players",
+              grammar: { kind: "choice", passable: true, options: [{ kind: "action", ref: "noop" }] },
+            },
+          ],
+        }],
       },
     });
-    expect((result.root as any).endCondition).toBe("all-passed");
+    expect((result.root as any).children[0].endCondition).toBe("all-passed");
   });
 
   it("parses loop with finalRound: true", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        endCondition: { ">=": [{ var: "actor.property.score" }, 50] },
-        finalRound: true,
-        children: [{ kind: "turn", actor: "all-players", turnOrder: { kind: "seat", direction: "clockwise" }, grammar: { kind: "action", ref: "take-turn" } }],
+        kind: "game",
+        children: [{
+          kind: "loop",
+          endCondition: { ">=": [{ var: "actor.property.score" }, 50] },
+          finalRound: true,
+          children: [{ kind: "turn", actor: "all-players", turnOrder: { kind: "seat", direction: "clockwise" }, grammar: { kind: "action", ref: "take-turn" } }],
+        }],
       },
     });
-    expect((result.root as any).finalRound).toBe(true);
+    expect((result.root as any).children[0].finalRound).toBe(true);
   });
 
   it("parses count: 1 root with two child phase loops (multi-phase game)", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        count: 1,
+        kind: "game",
         children: [
           {
             kind: "loop",
@@ -252,7 +258,6 @@ describe("FlowModuleSchema — Loop exit", () => {
       },
     });
     const root = result.root as any;
-    expect(root.count).toBe(1);
     expect(root.children[0].id).toBe("exploration");
     expect(root.children[0].finalRound).toBe(true);
     expect(root.children[1].id).toBe("escape");
@@ -271,8 +276,7 @@ describe("FlowModuleSchema — Scoped interrupt windows", () => {
   it("parses interruptWindows on root loop", () => {
     const result = ok({
       root: {
-        kind: "loop",
-        count: 3,
+        kind: "game",
         interruptWindows: [
           {
             id: "global-response",
@@ -282,7 +286,7 @@ describe("FlowModuleSchema — Scoped interrupt windows", () => {
             actions: ["respond"],
           },
         ],
-        children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }],
+        children: [{ kind: "loop", count: 3, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
       },
     });
     expect((result.root as any).interruptWindows).toHaveLength(1);
@@ -459,7 +463,7 @@ describe("FlowModuleSchema — TurnOrder", () => {
 
 describe("FlowModuleSchema — Rejection cases", () => {
   it("rejects loop with empty children", () => {
-    fail({ root: { kind: "loop", count: 1, children: [] } });
+    fail({ root: { kind: "game", children: [{ kind: "loop", count: 1, children: [] }] } });
   });
 
   it("rejects turn with no actor", () => {

@@ -1,0 +1,298 @@
+metadata:
+  name: "Liar's Dice"
+  playerCount:
+    min: 2
+    max: 6
+
+state:
+  game:
+    properties:
+      - id: currentBidQuantity
+        type:
+          kind: integer
+          min: 0
+          max: 30
+        default: 0
+        description: Quantity of dice declared in the current round's bid. 0 = no bid yet.
+      - id: currentBidFace
+        type:
+          kind: integer
+          min: 0
+          max: 6
+        default: 0
+        description: Face value declared in the current round's bid. 0 = no bid yet.
+      - id: currentBidder
+        type:
+          kind: string
+        default: ""
+        description: Player ID of the player who made the current bid. Empty string = no bid yet.
+      - id: activePlayers
+        type:
+          kind: integer
+          min: 0
+        default:
+          fromPlayerCount: true
+        description: Number of players still in the game. Game ends when this reaches 1.
+      - id: challengeMade
+        type:
+          kind: boolean
+        default: false
+        description: >-
+          Set to true when a player challenges the current bid. Exits the
+          bidding loop and advances to the review turn.
+      - id: roundLoser
+        type:
+          kind: string
+        default: ""
+        description: >-
+          Player ID of the loser of the most recent challenge. Set by
+          resolve-challenge; used by eliminate-die to remove the correct die.
+  player:
+    properties:
+      - id: isActive
+        type:
+          kind: boolean
+        default: true
+        description: Whether this player is still in the game (has at least one die).
+
+gamepieceTypes:
+  types:
+    - id: die
+      category: dice
+      description: A six-sided die kept hidden under each player's cup.
+      properties:
+        - id: face
+          label: Face
+          type:
+            kind: integer
+            min: 1
+            max: 6
+          mutable: true
+          visibility: always
+          description: >-
+            The face currently showing. The player-cup inventory's owner
+            visibility controls who can see dice inside it.
+
+inventories:
+  types:
+    - id: player-cup
+      scope:
+        kind: player
+      accepts:
+        - die
+      visibility: owner
+      description: >-
+        Each player's hidden cup. Dice here are visible only to the owning
+        player.
+
+effects:
+  effects:
+    - id: deal-dice
+      kind: distribute
+      from:
+        inventory: "game:unassigned"
+        select: top
+        ofType: die
+      to:
+        scope: all-players
+        inventory: player-cup
+      count: 5
+
+    - id: roll-all-dice
+      kind: roll
+      pieces:
+        inventory: player-cup
+        select: all
+
+    - id: reveal-all-dice
+      kind: reveal
+      pieces:
+        inventory: player-cup
+        select: all
+      to: all
+
+    - id: hide-all-dice
+      kind: hide
+      pieces:
+        inventory: player-cup
+        select: all
+
+    - id: reset-bid
+      kind: set-state
+      path: game.property.currentBidQuantity
+      value: 0
+
+    - id: reset-bid-face
+      kind: set-state
+      path: game.property.currentBidFace
+      value: 0
+
+    - id: reset-bidder
+      kind: set-state
+      path: game.property.currentBidder
+      value: ""
+
+    - id: reset-challenge-made
+      kind: set-state
+      path: game.property.challengeMade
+      value: false
+
+    - id: reset-round-loser
+      kind: set-state
+      path: game.property.roundLoser
+      value: ""
+
+    - id: set-challenge-made
+      kind: set-state
+      path: game.property.challengeMade
+      value: true
+
+    - id: resolve-challenge
+      kind: prose
+      description: >-
+        Count all dice across every player's player-cup where face equals
+        game.property.currentBidFace. If the total count is greater than or
+        equal to game.property.currentBidQuantity, the challenge fails — set
+        game.property.roundLoser to the challenger's player ID. If the total
+        is less, the challenge succeeds — set game.property.roundLoser to the
+        value of game.property.currentBidder.
+
+    - id: eliminate-die
+      kind: move
+      from:
+        player:
+          stateRef: game.property.roundLoser
+        inventory: player-cup
+        select: random
+        count: 1
+      to:
+        inventory: "game:unassigned"
+
+    - id: check-elimination
+      kind: prose
+      description: >-
+        For each player: if their player-cup contains 0 dice, set
+        player.property.isActive to false and decrement
+        game.property.activePlayers by 1.
+
+actions:
+  actions:
+    - id: make-bid
+      label: Make Bid
+      description: >-
+        Declare how many dice across all players show a given face value.
+        Must be strictly higher than the previous bid.
+      inputs:
+        - id: quantity
+          label: Quantity
+          type:
+            kind: integer
+            min: 1
+            max: 30
+          validation: >-
+            Must be strictly higher than the current bid: a higher quantity,
+            or the same quantity with a higher face value.
+        - id: faceValue
+          label: Face Value
+          type:
+            kind: integer
+            min: 1
+            max: 6
+      effects:
+        - kind: set-state
+          path: game.property.currentBidQuantity
+          value:
+            param: quantity
+        - kind: set-state
+          path: game.property.currentBidFace
+          value:
+            param: faceValue
+        - kind: set-state
+          path: game.property.currentBidder
+          value:
+            actor: true
+        - kind: message
+          to: all
+          template: >-
+            {{actor.name}} bids {{input.quantity}} dice showing
+            {{input.faceValue}}s.
+
+    - id: challenge
+      label: Challenge
+      description: >-
+        Call out the current bid as a lie. Reveals all dice to all players,
+        resolves the round, then waits for a player to start the next round.
+      preconditions:
+        "!=":
+          - var: game.property.currentBidQuantity
+          - 0
+      effects:
+        - ref: reveal-all-dice
+        - ref: resolve-challenge
+        - ref: eliminate-die
+        - ref: check-elimination
+        - ref: set-challenge-made
+        - kind: message
+          to: all
+          template: >-
+            {{actor.name}} challenges the bid of
+            {{state.game.property.currentBidQuantity}}
+            {{state.game.property.currentBidFace}}s — all dice are now
+            revealed. Type "start next round" when you're ready to continue.
+
+    - id: start-next-round
+      label: Start Next Round
+      description: >-
+        Hide the dice, roll for the next round, and reset the bid. Use
+        this after reviewing the results of a challenge.
+      effects:
+        - ref: hide-all-dice
+        - ref: roll-all-dice
+        - ref: reset-bid
+        - ref: reset-bid-face
+        - ref: reset-bidder
+        - ref: reset-challenge-made
+        - ref: reset-round-loser
+
+flow:
+  root:
+    kind: game
+    hooks:
+      onEnter:
+        - ref: deal-dice        # once at game start — dice stay in cups all game
+        - ref: roll-all-dice    # initial roll before the first round
+    children:
+      - kind: loop              # game loop — runs until one player remains
+        endCondition:
+          "<=":
+            - var: game.property.activePlayers
+            - 1
+        children:
+          - kind: loop          # bidding loop — players bid until someone challenges
+            endCondition:
+              "==":
+                - var: game.property.challengeMade
+                - true
+            children:
+              - kind: turn
+                actor: active-player
+                turnOrder:
+                  kind: seat
+                  direction: clockwise
+                grammar:
+                  kind: choice
+                  options:
+                    - kind: action
+                      ref: make-bid
+                    - kind: action
+                      ref: challenge
+          - kind: turn          # review turn — any active player starts the next round
+            actor: active-player
+            grammar:
+              kind: action
+              ref: start-next-round
+
+catalog:
+  entries:
+    - typeId: die
+      quantity: 30

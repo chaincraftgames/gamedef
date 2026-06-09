@@ -99,10 +99,29 @@ import { InventoryPlacementSchema } from "./inventories.js";
  * { inventory: combat-zone, select: all, ofType: captain }
  * { inventory: dice-tray, select: random, count: 2 }
  * { inventory: game:unassigned, select: { id: white-king } }
+ * { player: { stateRef: game.property.roundLoser }, inventory: player-cup, select: top }
  * ```
  */
 export const PieceSelectorSchema = z
   .object({
+    player: z
+      .object({
+        stateRef: z
+          .string()
+          .describe(
+            "Dot-path to a string state property whose value is the target player ID at runtime. " +
+              "Format: 'game.property.<id>'. The engine resolves the player instance dynamically. " +
+              "Use when the target player is determined by game state rather than fixed context " +
+              "(e.g., game.property.roundLoser, game.property.currentBidder).",
+          ),
+      })
+      .optional()
+      .describe(
+        "Dynamic player targeting. When present, overrides the default active-player context " +
+          "and selects pieces from the named player's instance of the inventory. " +
+          "Omit to use the default context (active player for player-scoped inventories, " +
+          "game context for game-scoped inventories).",
+      ),
     inventory: z
       .string()
       .describe(
@@ -146,7 +165,8 @@ export const PieceSelectorSchema = z
       ),
   })
   .describe(
-    "Identifies which pieces an effect operates on — which inventory and how to pick from it.",
+    "Identifies which pieces an effect operates on — which inventory and how to pick from it. " +
+      "Use 'player' with 'stateRef' to dynamically target a player identified by game state.",
   );
 
 // ---------------------------------------------------------------------------
@@ -260,6 +280,13 @@ export const PropertyValueSchema = z
           "Engine convention — no explicit binding needed. " +
           "Only valid in inline effects inside an action that declares a matching input id.",
       ),
+    z
+      .object({ actor: z.literal(true) })
+      .describe(
+        "Set this property to the ID of the player who triggered the current action. " +
+          "Useful for recording who made a bid, who attacked, or who initiated any action. " +
+          "Engine resolves at execution time from the current action context.",
+      ),
   ])
   .describe(
     "The new value to assign, or a relative change to apply to a property.",
@@ -315,7 +342,8 @@ export const MoveEffectSchema = z
 
 /**
  * Change the face state of one or more pieces.
- * Only meaningful for gamepiece types where hasFaceState is true.
+ * Only meaningful for gamepiece types where hasFaceState is true (e.g. cards).
+ * For temporary visibility overrides without changing face state, use 'reveal'/'hide'.
  *
  * @example Reveal all cards in the combat zone
  * ```yaml
@@ -342,7 +370,9 @@ export const FlipEffectSchema = z
       ),
   })
   .describe(
-    "Changes the face state of pieces. Affects visibility of 'revealed' properties.",
+    "Changes the physical face state of pieces (requires hasFaceState: true on the type). " +
+      "Affects visibility of 'revealed' properties. " +
+      "For temporary per-audience visibility without a physical flip, use 'reveal'/'hide'.",
   );
 
 /**
@@ -586,6 +616,78 @@ export const MessageRecipientSchema = z
   );
 
 /**
+ * Temporarily override the visibility of pieces for specific players.
+ * Does NOT move pieces or change face state — the override persists until an explicit
+ * 'hide' effect or the end of the enclosing action.
+ *
+ * Use for: peek actions (view top card), challenge reveals (show all dice to everyone),
+ * opponent hand inspections, and any case where pieces need to be visible temporarily.
+ *
+ * @example Reveal all dice to all players for challenge resolution (Liar's Dice)
+ * ```yaml
+ * kind: reveal
+ * pieces: { inventory: player-cup, select: all }
+ * to: all
+ * ```
+ * @example Active player peeks at the top card of the draw deck
+ * ```yaml
+ * kind: reveal
+ * pieces: { inventory: draw-deck, select: top }
+ * to: actor
+ * ```
+ * @example Reveal one opponent's card to the acting player
+ * ```yaml
+ * kind: reveal
+ * pieces: { inventory: opponent-hand, select: player-chooses, count: 1 }
+ * to: actor
+ * ```
+ */
+export const RevealEffectSchema = z
+  .object({
+    kind: z.literal("reveal"),
+    pieces: PieceSelectorSchema.describe("Which pieces to temporarily reveal."),
+    to: MessageRecipientSchema.describe(
+      "Who can see the revealed pieces. " +
+        "'actor': only the player whose turn it is. " +
+        "'all': every active player. " +
+        "'opponents': all players except the actor. " +
+        "'role:<id>': only players with the named role. " +
+        "Any other string: a specific player ID.",
+    ),
+  })
+  .describe(
+    "Temporarily overrides piece visibility for specific players without moving pieces. " +
+      "The reveal persists until an explicit 'hide' effect or the enclosing action completes. " +
+      "Use for peek actions, challenge reveals, and hand inspections.",
+  );
+
+/**
+ * Revert piece visibility to the inventory's default, cancelling any active 'reveal' override.
+ *
+ * @example Re-hide all dice after challenge resolution (Liar's Dice)
+ * ```yaml
+ * kind: hide
+ * pieces: { inventory: player-cup, select: all }
+ * ```
+ * @example Re-hide the peeked top card after a peek action
+ * ```yaml
+ * kind: hide
+ * pieces: { inventory: draw-deck, select: top }
+ * ```
+ */
+export const HideEffectSchema = z
+  .object({
+    kind: z.literal("hide"),
+    pieces: PieceSelectorSchema.describe(
+      "Which pieces to revert to their inventory's default visibility.",
+    ),
+  })
+  .describe(
+    "Reverts pieces to their inventory's default visibility, cancelling any active 'reveal' overrides. " +
+      "Typically paired with a preceding 'reveal' effect after the inspection or resolution window closes.",
+  );
+
+/**
  * @example Confirmation after player creates a weapon
  * ```yaml
  * id: confirm-weapon
@@ -802,6 +904,65 @@ export const LlmEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Set-state effect
+// ---------------------------------------------------------------------------
+
+/**
+ * Write a value to an abstract state property declared in the state module.
+ * Does not operate on gamepieces — use 'update' for piece properties.
+ *
+ * Path format:
+ *   game.property.<id>    → game-scoped property
+ *   player.property.<id>  → acting player's per-player property
+ *
+ * @example Reset the bid quantity to 0 after a challenge
+ * ```yaml
+ * kind: set-state
+ * path: game.property.currentBidQuantity
+ * value: 0
+ * ```
+ * @example Set bid quantity from an action input
+ * ```yaml
+ * kind: set-state
+ * path: game.property.currentBidQuantity
+ * value: { param: quantity }
+ * ```
+ * @example Eliminate a player
+ * ```yaml
+ * kind: set-state
+ * path: player.property.isActive
+ * value: false
+ * ```
+ * @example Decrement active player count
+ * ```yaml
+ * kind: set-state
+ * path: game.property.activePlayers
+ * value: { delta: -1 }
+ * ```
+ */
+export const SetStateEffectSchema = z
+  .object({
+    kind: z.literal("set-state"),
+    path: z
+      .string()
+      .describe(
+        "Dot-path to the state property to write. " +
+          "Format: 'game.property.<id>' for game-scoped state, " +
+          "'player.property.<id>' for the acting player's per-player state. " +
+          "Forward reference to a property declared in the state module.",
+      ),
+    value: PropertyValueSchema.describe(
+      "New value to write, relative delta, or param reference. " +
+        "Same vocabulary as update effects — literal, delta, toggle, or param.",
+    ),
+  })
+  .describe(
+    "Writes to abstract game or player state declared in the state module. " +
+      "For piece property mutations use 'update'. " +
+      "Readable in preconditions and flow endConditions via the same dot-path.",
+  );
+
+// ---------------------------------------------------------------------------
 // Cancel effect
 // ---------------------------------------------------------------------------
 
@@ -846,7 +1007,10 @@ const namedEffectBase = { id: effectId };
 export const NamedEffectSchema = z.discriminatedUnion("kind", [
   MoveEffectSchema.extend(namedEffectBase),
   FlipEffectSchema.extend(namedEffectBase),
+  RevealEffectSchema.extend(namedEffectBase),
+  HideEffectSchema.extend(namedEffectBase),
   UpdateEffectSchema.extend(namedEffectBase),
+  SetStateEffectSchema.extend(namedEffectBase),
   ShuffleEffectSchema.extend(namedEffectBase),
   DistributeEffectSchema.extend(namedEffectBase),
   RollEffectSchema.extend(namedEffectBase),
@@ -892,7 +1056,10 @@ export const EffectsModuleSchema = z
 export const EffectSchema = z.discriminatedUnion("kind", [
   MoveEffectSchema,
   FlipEffectSchema,
+  RevealEffectSchema,
+  HideEffectSchema,
   UpdateEffectSchema,
+  SetStateEffectSchema,
   ShuffleEffectSchema,
   DistributeEffectSchema,
   RollEffectSchema,
@@ -970,7 +1137,10 @@ export type DistributeTarget = z.infer<typeof DistributeTargetSchema>;
 export type PropertyValue = z.infer<typeof PropertyValueSchema>;
 export type MoveEffect = z.infer<typeof MoveEffectSchema>;
 export type FlipEffect = z.infer<typeof FlipEffectSchema>;
+export type RevealEffect = z.infer<typeof RevealEffectSchema>;
+export type HideEffect = z.infer<typeof HideEffectSchema>;
 export type UpdateEffect = z.infer<typeof UpdateEffectSchema>;
+export type SetStateEffect = z.infer<typeof SetStateEffectSchema>;
 export type ShuffleEffect = z.infer<typeof ShuffleEffectSchema>;
 export type DistributeEffect = z.infer<typeof DistributeEffectSchema>;
 export type RollEffect = z.infer<typeof RollEffectSchema>;

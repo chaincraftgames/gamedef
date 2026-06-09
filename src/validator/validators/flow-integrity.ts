@@ -7,13 +7,13 @@
  *
  * Rules:
  *   - flow module must have a root node if the module is present
- *   - every loop node must have an exit path:
+ *   - root must be kind: game (not a loop)
+ *   - every loop node (anywhere in the tree) must have an exit path:
  *       (a) an explicit `count` field, OR
  *       (b) an explicit `endCondition` field, OR
  *       (c) a game-level mechanic that auto-wires an endCondition
  *           (currently: chaincraft:score-track with a winAt value)
- *   - the auto-wire exception only applies to the root loop, since game-level
- *     mechanics inject their endCondition onto the root
+ *   - the auto-wire exception applies to the first child loop of root
  */
 
 import type { ModularGameSpec } from "#gamedef/index.js";
@@ -31,7 +31,7 @@ function mechanicsAutoWireRootEnd(spec: ModularGameSpec): boolean {
 function checkNode(
   node: unknown,
   path: string,
-  isRoot: boolean,
+  isTopLevelChild: boolean,
   autoWiredEnd: boolean,
   errors: ValidationError[],
 ): void {
@@ -42,7 +42,7 @@ function checkNode(
     const hasExit =
       n["endCondition"] !== undefined ||
       n["count"] !== undefined ||
-      (isRoot && autoWiredEnd);
+      (isTopLevelChild && autoWiredEnd);
 
     if (!hasExit) {
       errors.push({
@@ -79,13 +79,24 @@ export class FlowIntegrityValidator implements SpecValidator {
 
     if (!spec.flow) return errors;
 
-    if (!spec.flow.root) {
+    const root = spec.flow.root;
+    if (!root) {
       errors.push({ path: "flow.root", message: "Flow module must have a root node" });
       return errors;
     }
 
+    if ((root as Record<string, unknown>)["kind"] !== "game") {
+      errors.push({ path: "flow.root", message: 'Root node must be kind: "game"' });
+      return errors;
+    }
+
     const autoWiredEnd = mechanicsAutoWireRootEnd(spec);
-    checkNode(spec.flow.root, "flow.root", true, autoWiredEnd, errors);
+    const rootChildren = (root as Record<string, unknown>)["children"];
+    if (Array.isArray(rootChildren)) {
+      rootChildren.forEach((c, i) =>
+        checkNode(c, `flow.root.children[${i}]`, true, autoWiredEnd, errors),
+      );
+    }
 
     return errors;
   }

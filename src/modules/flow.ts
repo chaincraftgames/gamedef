@@ -825,14 +825,78 @@ export const InterruptWindowSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Game root node (top-level container — not a loop)
+// ---------------------------------------------------------------------------
+
+/**
+ * The root of every game's flow tree. Exactly one per spec.
+ *
+ * `kind: game` is a once-through container — it is NOT a loop. It runs its
+ * children in order and terminates when its last child completes. Use its
+ * `onEnter` hook for one-time game setup (deal cards, assign roles, etc.).
+ * End conditions and repetition belong in child loop nodes.
+ *
+ * This separation prevents the "same endCondition on both root and round loop"
+ * anti-pattern that arises when root is forced to be a loop.
+ *
+ * @example Liar's Dice — game setup once, round loop owns the end condition
+ * ```yaml
+ * root:
+ *   kind: game
+ *   hooks:
+ *     onEnter:
+ *       - ref: deal-dice        # runs once at game start
+ *   children:
+ *     - kind: loop
+ *       endCondition: { "<=": [{ var: game.property.activePlayers }, 1] }
+ *       hooks:
+ *         onEnter:
+ *           - ref: roll-all-dice
+ *       children:
+ *         - kind: turn
+ *           actor: active-player
+ * ```
+ */
+export const GameRootSchema = z
+  .object({
+    kind: z.literal("game"),
+    label: z.string().optional().describe("Human-readable name for the game root. Optional."),
+    hooks: FlowHooksSchema.optional().describe(
+      "Lifecycle hooks. 'onEnter' is the canonical location for one-time game setup " +
+        "(deal opening hands, assign roles, initialize state). " +
+        "'onComplete' fires when the last child finishes — use for end-of-game cleanup.",
+    ),
+    children: z
+      .array(FlowNodeSchema)
+      .min(1)
+      .describe(
+        "Ordered list of flow nodes that constitute the game. " +
+          "Executed once in order — the game ends when the last child completes. " +
+          "Typically contains one or more loop nodes that own their own end conditions.",
+      ),
+    interruptWindows: z
+      .array(InterruptWindowSchema)
+      .optional()
+      .describe(
+        "Interrupt windows active throughout the entire game. " +
+          "Inherited by all descendant nodes.",
+      ),
+  })
+  .describe(
+    "The top-level game container. Runs once — not a loop. " +
+      "Use onEnter for game setup. End conditions belong on child loop nodes.",
+  );
+
+// ---------------------------------------------------------------------------
 // Flow module
 // ---------------------------------------------------------------------------
 
 export const FlowModuleSchema = z
   .object({
-    root: FlowNodeSchema.describe(
-      "The root flow node — entry point of the game. Must be a 'loop' node. " +
-        "Interrupt windows on the root are active throughout the entire game.",
+    root: GameRootSchema.describe(
+      "The root of the game's flow tree. Always 'kind: game'. " +
+        "Runs once: onEnter for setup, children for the game structure. " +
+        "Interrupt windows on root are active throughout the entire game.",
     ),
   })
   .describe(
@@ -857,4 +921,5 @@ type ActorSpec = z.infer<typeof ActorSpecSchema>;
 export type { TurnOrder, ActorSpec };
 export type FlowHooks = z.infer<typeof FlowHooksSchema>;
 export type InterruptWindow = z.infer<typeof InterruptWindowSchema>;
+export type GameRoot = z.infer<typeof GameRootSchema>;
 export type FlowModule = z.infer<typeof FlowModuleSchema>;

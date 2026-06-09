@@ -39,7 +39,12 @@ const DUMMY_TURN = {
   grammar: { kind: "action", ref: "dummy" },
 };
 
-/** A Zod-valid root loop with count=1 */
+/** A Zod-valid root game node wrapping a single loop with count=1 */
+function makeGameRoot(overrides: Record<string, unknown> = {}) {
+  return { kind: "game", children: [{ kind: "loop", count: 1, children: [DUMMY_TURN] }], ...overrides };
+}
+
+/** A Zod-valid loop node with count=1 */
 function makeLoop(overrides: Record<string, unknown> = {}) {
   return { kind: "loop", count: 1, children: [DUMMY_TURN], ...overrides };
 }
@@ -188,8 +193,7 @@ describe("Duplicate ID detection", () => {
       minimalSpec({
         flow: {
           root: {
-            kind: "loop",
-            count: 1,
+            kind: "game",
             children: [
               { kind: "loop", id: "phase-a", count: 3, children: [DUMMY_TURN] },
               { kind: "loop", id: "phase-a", count: 3, children: [DUMMY_TURN] },
@@ -221,24 +225,34 @@ describe("Duplicate ID detection", () => {
 // ---------------------------------------------------------------------------
 
 describe("Flow structural integrity", () => {
-  it("errors when root loop has no exit condition", () => {
+  it("errors when root is not kind: game", () => {
     const result = validate(
       minimalSpec({
-        flow: { root: { kind: "loop", children: [DUMMY_TURN] } },
+        flow: { root: { kind: "loop", count: 1, children: [DUMMY_TURN] } },
+      }),
+    );
+    expect(result.valid).toBe(false);
+  });
+
+  it("errors when child loop has no exit condition", () => {
+    const result = validate(
+      minimalSpec({
+        flow: { root: { kind: "game", children: [{ kind: "loop", children: [DUMMY_TURN] }] } },
       }),
     );
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.message.includes("no exit condition"))).toBe(true);
   });
 
-  it("passes when root loop has endCondition", () => {
+  it("passes when child loop has endCondition", () => {
     const result = validate(
       minimalSpec({
         flow: {
           root: {
-            kind: "loop",
-            endCondition: { var: "game.property.gameOver" },
-            children: [],
+            kind: "game",
+            children: [
+              { kind: "loop", endCondition: { var: "game.property.gameOver" }, children: [DUMMY_TURN] },
+            ],
           },
         },
       }),
@@ -247,10 +261,10 @@ describe("Flow structural integrity", () => {
     expect(flowErrors).toHaveLength(0);
   });
 
-  it("passes when root loop has count", () => {
+  it("passes when child loop has count", () => {
     const result = validate(
       minimalSpec({
-        flow: { root: makeLoop() },
+        flow: { root: makeGameRoot() },
       }),
     );
     const flowErrors = result.errors.filter((e) => e.message.includes("no exit condition"));
@@ -269,7 +283,7 @@ describe("Flow structural integrity", () => {
             winAt: 10,
           },
         ],
-        flow: { root: { kind: "loop", children: [DUMMY_TURN] } },
+        flow: { root: { kind: "game", children: [{ kind: "loop", children: [DUMMY_TURN] }] } },
       }),
     );
     const flowErrors = result.errors.filter((e) => e.message.includes("no exit condition"));
@@ -281,14 +295,19 @@ describe("Flow structural integrity", () => {
       minimalSpec({
         flow: {
           root: {
-            kind: "loop",
-            count: 1,
+            kind: "game",
             children: [
               {
                 kind: "loop",
-                id: "inner",
-                // no endCondition, no count
-                children: [DUMMY_TURN],
+                count: 1,
+                children: [
+                  {
+                    kind: "loop",
+                    id: "inner",
+                    // no endCondition, no count
+                    children: [DUMMY_TURN],
+                  },
+                ],
               },
             ],
           },
@@ -312,7 +331,7 @@ describe("Flow structural integrity", () => {
   it("errors when availableInSubflows references non-existent node ID", () => {
     const result = validate(
       minimalSpec({
-        flow: { root: makeLoop() },
+        flow: { root: makeGameRoot() },
         effects: { effects: [makeEffect("use-e")] },
         actions: {
           actions: [makeAction("use-ability", "use-e")],
