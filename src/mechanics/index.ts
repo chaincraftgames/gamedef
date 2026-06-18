@@ -28,8 +28,14 @@ export type { ConversionMechanic, ConversionLeg } from "./conversion.js";
 export { ScoreTrackMechanicSchema } from "./score-track.js";
 export type { ScoreTrackMechanic } from "./score-track.js";
 
-export { TrumpMechanicSchema } from "./trump.js";
-export type { TrumpMechanic } from "./trump.js";
+export {
+  TrumpMechanicSchema,
+  TrumpRuleSchema,
+  DominantTrumpRuleSchema,
+  ComparisonTrumpRuleSchema,
+  MatrixTrumpRuleSchema,
+} from "./trump.js";
+export type { TrumpMechanic, TrumpRule } from "./trump.js";
 
 // ---------------------------------------------------------------------------
 // Union schemas

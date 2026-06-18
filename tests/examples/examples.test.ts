@@ -17,3 +17,14 @@ test("liars-dice.yaml validates", () => {
   }
   expect(result.valid).toBe(true);
 });
+
+test("absurd-armaments.yaml validates", () => {
+  const raw = load(
+    readFileSync(join(__dirname, "../../examples/absurd-armaments.yaml"), "utf-8")
+  );
+  const result = validate(raw);
+  if (!result.valid) {
+    console.error("Validation errors:", JSON.stringify(result.errors, null, 2));
+  }
+  expect(result.valid).toBe(true);
+});

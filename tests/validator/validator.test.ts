@@ -116,10 +116,15 @@ describe("Reference resolution", () => {
         mechanics: [
           {
             kind: "chaincraft:trump",
-            suitProperty: "suit",
-            rankProperty: "rank",
-            rankOrder: ["2", "3", "A"],
             evaluationInventory: "nonexistent-pile",
+            winnerToState: "game.property.roundWinner",
+            rules: [
+              {
+                kind: "matrix",
+                property: "rps",
+                beats: { rock: ["scissors"], paper: ["rock"], scissors: ["paper"] },
+              },
+            ],
           },
         ],
       }),

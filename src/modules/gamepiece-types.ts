@@ -325,16 +325,20 @@ export const GamepieceTypeSchema = z
           "(inventories, actions, effects, mechanics, catalog).",
       ),
     category: z
-      .enum(["card", "token", "piece", "dice", "tile", "board"])
+      .enum(["card", "token", "dice", "tile", "board"])
       .describe(
         "The physical category of this gamepiece. Drives rendering decisions and catalog " +
-          "generation logic. " +
-          "'card': has faces (front/back), held in hands and decks. " +
-          "'token': small marker placed on boards or cards (resources, counters, damage). " +
-          "'piece': player figurine or unit moved around a board. " +
-          "'dice': has faces with values, rolled for randomness. " +
-          "'tile': board component laid out spatially, may have adjacency. " +
-          "'board': the play surface, typically holds other pieces and has regions.",
+          "generation logic. Mechanical capabilities vary by category: " +
+          "'card': flippable (front/back), stackable, rotatable (e.g. tap/exhaust), " +
+          "can have sub-inventories/slots (equipment on a creature, counters on a card). " +
+          "'token': flippable (optional), not stackable, not rotatable, no sub-inventories. " +
+          "Covers pawns, figurines, resource markers, score counters, player position markers, " +
+          "wargame units, and any small discrete game object. " +
+          "'dice': has numbered faces, rolled for randomness. " +
+          "'tile': flippable, rotatable (edges matter), can have sub-inventories. " +
+          "Board component laid out spatially with adjacency. " +
+          "'board': the play surface, can have sub-inventories (spaces, regions). " +
+          "Typically holds other gamepieces.",
       ),
     description: z
       .string()
@@ -382,13 +386,26 @@ export const GamepieceTypeSchema = z
       .boolean()
       .default(false)
       .describe(
-        "Whether instances of this type have a face-up/face-down state. " +
-          "When true, the engine automatically tracks face state as a built-in property — " +
-          "no need to define a 'faceUp' property manually. " +
-          "This also makes 'visibility: revealed' meaningful for properties on this type: " +
-          "revealed properties are hidden when the piece is face-down and visible when face-up. " +
-          "Typically true for cards and tiles; false for pieces, boards, and dice. " +
-          "Set true for tokens that have hidden states (e.g., hidden-role tokens).",
+        "Whether instances of this type have a face-up/face-down state (two-sided). " +
+          "When true, the engine tracks face state as a built-in property and flipping " +
+          "the piece means reveal/hide. Properties with 'visibility: revealed' are hidden " +
+          "when face-down and visible when face-up. " +
+          "Typically true for cards and tiles; false for tokens, boards, and dice. " +
+          "Set true for tokens that have hidden states (e.g., hidden-role tokens). " +
+          "If both hasFaceState and exhaustible are true, flipping means reveal/hide " +
+          "and the exhausted state is shown via a separate visual indicator.",
+      ),
+    exhaustible: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Whether instances of this type can be exhausted (tapped/spent/on cooldown). " +
+          "When true, the engine tracks an exhausted/ready state as a built-in property. " +
+          "If hasFaceState is false, flipping the piece toggles exhausted/ready. " +
+          "If hasFaceState is true, flipping means reveal/hide and the renderer shows " +
+          "exhaustion via rotation, overlay, or other visual indicator. " +
+          "Typically true for cards that can be tapped (e.g. MTG) or tokens representing " +
+          "abilities with cooldowns.",
       ),
     faceCount: z
       .number()
@@ -410,18 +427,24 @@ export const GamepieceTypeSchema = z
       .describe(
         "Number of discrete orientations instances of this type can have. " +
           "Default 1 means no rotation — the piece has a single fixed orientation. " +
-          "The engine and renderer use this to track and display piece facing. " +
-          "Common values: 2 (reversible, e.g., a double-sided token), " +
-          "4 (90° rotations, e.g., Carcassonne tiles), " +
-          "6 or 8 (hex/directional facings, e.g., spaceship tokens). " +
+          "Meaningful for tiles where edge alignment matters (e.g. Carcassonne). " +
+          "Common values: 4 (90° rotations), 6 (hex facings). " +
+          "Note: visual rotation to indicate exhaustion (e.g. tapping a card) is NOT " +
+          "modeled by orientationCount — use 'exhaustible: true' instead. " +
           "Orientation is independent of face state — a tile can have both " +
           "hasFaceState: true (front/back) and orientationCount: 4 (4 rotations).",
       ),
   })
   .describe(
-    "A named category of physical game object (board, card, die, token, counter, space). " +
-      "The spec declares types; the catalog declares instances. " +
-      "All gamepieces in the game are instances of a type defined here.",
+    "A gamepiece type definition. Mechanical capabilities by category:\n" +
+      "| Category | Flippable | Stackable | Rotatable | Sub-inventories |\n" +
+      "| card     | yes       | yes       | no        | yes             |\n" +
+      "| token    | optional  | no        | no        | no              |\n" +
+      "| dice     | N/A       | no        | no        | no              |\n" +
+      "| tile     | yes       | no        | yes       | yes             |\n" +
+      "| board    | optional  | no        | no        | yes             |\n" +
+      "Any category can set 'exhaustible: true' for tap/cooldown state.\n" +
+      "The spec declares types; the catalog declares instances.",
   );
 
 // ---------------------------------------------------------------------------

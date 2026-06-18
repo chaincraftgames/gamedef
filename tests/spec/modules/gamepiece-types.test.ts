@@ -3,8 +3,9 @@
  *
  * "Pirate Duel" — two-player card-and-dice battle game.
  * Exercises every feature of the gamepiece-types module:
- *   - category: card, token, piece, dice, tile, board
+ *   - category: card, token, dice, tile, board
  *   - hasFaceState
+ *   - exhaustible
  *   - faceCount (dice)
  *   - orientationCount (tile)
  *   - mutable + immutable properties
@@ -30,6 +31,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
         category: "card",
         description: "An attack or defense card played during combat",
         hasFaceState: true,
+        exhaustible: true,
         properties: [
           {
             id: "cardType",
@@ -86,10 +88,10 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
         description: "Placed on a captain to track damage taken",
       },
 
-      // ---- piece: the player's captain unit ----
+      // ---- token: the player's captain unit ----
       {
         id: "captain",
-        category: "piece",
+        category: "token",
         description: "Each player's captain — the piece that must survive",
         properties: [
           {
@@ -203,17 +205,19 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
     expect(() => GamepieceTypesModuleSchema.parse(validModule)).not.toThrow();
   });
 
-  it("applies defaults: hasFaceState=false, orientationCount=1", () => {
+  it("applies defaults: hasFaceState=false, exhaustible=false, orientationCount=1", () => {
     const result = GamepieceTypesModuleSchema.parse(validModule);
     const goldCoin = result.types.find((t) => t.id === "gold-coin")!;
     expect(goldCoin.hasFaceState).toBe(false);
+    expect(goldCoin.exhaustible).toBe(false);
     expect(goldCoin.orientationCount).toBe(1);
   });
 
-  it("preserves explicit hasFaceState and orientationCount", () => {
+  it("preserves explicit hasFaceState, exhaustible, and orientationCount", () => {
     const result = GamepieceTypesModuleSchema.parse(validModule);
     const card = result.types.find((t) => t.id === "combat-card")!;
     expect(card.hasFaceState).toBe(true);
+    expect(card.exhaustible).toBe(true);
     const tile = result.types.find((t) => t.id === "sea-zone")!;
     expect(tile.orientationCount).toBe(4);
   });

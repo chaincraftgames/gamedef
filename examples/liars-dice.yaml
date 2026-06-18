@@ -148,7 +148,7 @@ effects:
       value: true
 
     - id: resolve-challenge
-      kind: prose
+      kind: custom
       description: >-
         Count all dice across every player's player-cup where face equals
         game.property.currentBidFace. If the total count is greater than or
@@ -169,7 +169,7 @@ effects:
         inventory: "game:unassigned"
 
     - id: check-elimination
-      kind: prose
+      kind: custom
       description: >-
         For each player: if their player-cup contains 0 dice, set
         player.property.isActive to false and decrement

@@ -77,23 +77,121 @@ export const StateDefaultSchema = z
   .describe("Initial value for this state property before any effects run.");
 
 // ---------------------------------------------------------------------------
+// Computed property query
+//
+// A computed property's value is lazily derived from inventory/piece state
+// rather than stored. This eliminates redundant state that must be kept in
+// sync with inventory mutations — the runtime evaluates the query on each
+// read, guaranteeing consistency.
+//
+// Computed properties are read-only: set-state effects targeting a computed
+// property are a spec validation error.
+// ---------------------------------------------------------------------------
+
+/**
+ * @example Count buildings a player has constructed
+ * ```yaml
+ * - id: buildingCount
+ *   type: { kind: integer }
+ *   computed:
+ *     inventory: built
+ *     aggregate: count
+ * ```
+ * @example Check if a player has at least one factory
+ * ```yaml
+ * - id: hasFactory
+ *   type: { kind: boolean }
+ *   computed:
+ *     inventory: built
+ *     ofType: factory-token
+ *     aggregate: exists
+ * ```
+ * @example Sum total army strength
+ * ```yaml
+ * - id: totalArmyStrength
+ *   type: { kind: integer }
+ *   computed:
+ *     inventory: army
+ *     ofType: soldier
+ *     property: strength
+ *     aggregate: sum
+ * ```
+ * @example Highest value card in hand
+ * ```yaml
+ * - id: bestCardValue
+ *   type: { kind: integer }
+ *   computed:
+ *     inventory: hand
+ *     property: value
+ *     aggregate: max
+ * ```
+ */
+export const ComputedPropertySchema = z
+  .object({
+    inventory: z
+      .string()
+      .describe(
+        "Inventory type ID to query. For game-scoped state, queries a game-scoped " +
+          "inventory. For player-scoped state, queries the player's instance of a " +
+          "player-scoped inventory. Forward reference to the inventories module.",
+      ),
+    ofType: z
+      .string()
+      .optional()
+      .describe(
+        "Restrict the query to pieces of this gamepiece type ID. Forward reference " +
+          "to the gamepiece-types module. Omit to include all pieces in the inventory.",
+      ),
+    property: z
+      .string()
+      .optional()
+      .describe(
+        "Piece property ID to aggregate over. Required for sum/min/max aggregates. " +
+          "Ignored for count/exists. Forward reference to a property declared on the " +
+          "piece type.",
+      ),
+    aggregate: z
+      .enum(["count", "exists", "sum", "min", "max"])
+      .describe(
+        "Aggregation function to apply.\n" +
+          "  count  — number of pieces (integer)\n" +
+          "  exists — at least one piece matches (boolean)\n" +
+          "  sum    — sum of a numeric piece property (integer/number)\n" +
+          "  min    — minimum value of a numeric piece property\n" +
+          "  max    — maximum value of a numeric piece property",
+      ),
+  })
+  .describe(
+    "A query that derives a property value from inventory/piece state. " +
+      "Evaluated lazily on read — never stored, never stale. " +
+      "Eliminates the need for manual sync effects when a value can be " +
+      "computed from the canonical piece/inventory state.",
+  );
+
+// ---------------------------------------------------------------------------
 // State property definition
 // ---------------------------------------------------------------------------
 
 /**
- * @example
+ * A state property is either **stored** (has a `default`, mutated by set-state
+ * effects) or **computed** (has a `computed` query, read-only, derived from
+ * inventory/piece state on every read).
+ *
+ * @example Stored property
  * ```yaml
  * - id: currentBidQuantity
  *   type: { kind: integer, min: 0, max: 30 }
  *   default: 0
  *   description: Quantity declared in the current round's bid.
  * ```
- * @example
+ * @example Computed property (count pieces in inventory)
  * ```yaml
- * - id: isActive
- *   type: { kind: boolean }
- *   default: true
- *   description: Whether this player is still in the game (has at least one die).
+ * - id: buildingCount
+ *   type: { kind: integer }
+ *   computed:
+ *     inventory: built
+ *     aggregate: count
+ *   description: Number of buildings this player has constructed.
  * ```
  */
 export const StatePropertySchema = z
@@ -105,13 +203,29 @@ export const StatePropertySchema = z
           "(e.g., game.property.currentBidQuantity). Use camelCase.",
       ),
     type: PropertyTypeSchema.describe("The value type for this property."),
-    default: StateDefaultSchema,
+    default: StateDefaultSchema.optional().describe(
+      "Initial value for a stored property. Required when `computed` is absent. " +
+        "Mutually exclusive with `computed`.",
+    ),
+    computed: ComputedPropertySchema.optional().describe(
+      "Query that derives this property's value from inventory/piece state. " +
+        "When present, the property is read-only and `default` must be absent.",
+    ),
     description: z
       .string()
       .optional()
       .describe("Human-readable description of what this property tracks."),
   })
-  .describe("A single tracked state variable with its type and initial value.");
+  .refine(
+    (p) => (p.default !== undefined) !== (p.computed !== undefined),
+    {
+      message: "A state property must have exactly one of 'default' (stored) or 'computed' (derived), not both and not neither.",
+    },
+  )
+  .describe(
+    "A state variable — either stored (mutable, has default) or computed " +
+      "(read-only, derived from inventory/piece state on read).",
+  );
 
 // ---------------------------------------------------------------------------
 // Game-scoped state
@@ -170,6 +284,7 @@ export const StateModuleSchema = z
 // ---------------------------------------------------------------------------
 
 export type StateDefault = z.infer<typeof StateDefaultSchema>;
+export type ComputedProperty = z.infer<typeof ComputedPropertySchema>;
 export type StateProperty = z.infer<typeof StatePropertySchema>;
 export type GameState = z.infer<typeof GameStateSchema>;
 export type PlayerState = z.infer<typeof PlayerStateSchema>;

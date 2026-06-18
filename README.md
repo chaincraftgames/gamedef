@@ -69,7 +69,7 @@ each mechanic `kind` injects; spec authors only provide configuration values.
 | Kind | Purpose |
 |------|---------|
 | `chaincraft:score-track` | Player/team score tracking on a line inventory |
-| `chaincraft:trump` | Trump suit evaluation for trick-taking games |
+| `chaincraft:trump` | Who-beats-whom resolution: trump suits, highest-wins, and Rock-Paper-Scissors |
 
 See `src/mechanics/WISHLIST.md` for mechanics in design.
 

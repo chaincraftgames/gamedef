@@ -67,6 +67,13 @@ export class ResolveRefsValidator implements SpecValidator {
             message: `Inventory "${mechanic.evaluationInventory}" not found in inventories module`,
           });
         }
+        if (!mechanic.winnerToState && !mechanic.winningPieceToState) {
+          errors.push({
+            path: `mechanics[${mi}]`,
+            message:
+              "chaincraft:trump requires at least one of 'winnerToState' or 'winningPieceToState'",
+          });
+        }
       }
     });
 

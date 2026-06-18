@@ -229,36 +229,79 @@ describe("ScoreTrackMechanicSchema", () => {
 describe("TrumpMechanicSchema", () => {
   const base = {
     kind: "chaincraft:trump",
-    suitProperty: "suit",
-    rankProperty: "rank",
-    rankOrder: [2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K", "A"],
-    evaluationInventory: "trick-pile",
+    evaluationInventory: "arena",
+    winnerToState: "game.property.roundWinner",
+    rules: [
+      {
+        kind: "matrix",
+        property: "rps",
+        beats: { rock: ["scissors"], paper: ["rock"], scissors: ["paper"] },
+      },
+    ],
   };
 
-  it("parses minimal trump mechanic (no-trump mode)", () => {
+  it("parses minimal matrix (RPS) trump mechanic", () => {
     const r = okTrump(base);
     expect(r.kind).toBe("chaincraft:trump");
-    expect(r.evaluationInventory).toBe("trick-pile");
-    expect(r.trumpSuit).toBeUndefined();
+    expect(r.evaluationInventory).toBe("arena");
+    expect(r.winnerToState).toBe("game.property.roundWinner");
+    expect(r.rules).toHaveLength(1);
   });
 
-  it("accepts literal trump suit (Spades)", () => {
-    const r = okTrump({ ...base, trumpSuit: "spades" });
-    expect(r.trumpSuit).toBe("spades");
+  it("accepts a chained dominant + comparison rule set (trick-taking)", () => {
+    const r = okTrump({
+      ...base,
+      rules: [
+        { kind: "dominant", property: "suit", dominantValue: "spades" },
+        {
+          kind: "comparison",
+          property: "rank",
+          order: [2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K", "A"],
+          direction: "highest",
+        },
+      ],
+    });
+    expect(r.rules).toHaveLength(2);
   });
 
-  it("accepts dynamic trump suit via JsonLogic", () => {
-    const r = okTrump({ ...base, trumpSuit: { var: "game.property.declaredTrump" } });
-    expect(r.trumpSuit).toEqual({ var: "game.property.declaredTrump" });
+  it("accepts a dynamic dominant value via JsonLogic", () => {
+    const r = okTrump({
+      ...base,
+      rules: [
+        { kind: "dominant", property: "suit", dominantValue: { var: "game.property.declaredTrump" } },
+      ],
+    });
+    expect(r.rules[0]).toMatchObject({ kind: "dominant" });
   });
 
-  it("accepts mixed string/number rankOrder", () => {
-    const r = okTrump(base);
-    expect(r.rankOrder).toHaveLength(13);
+  it("accepts winningPieceToState alongside winnerToState", () => {
+    const r = okTrump({ ...base, winningPieceToState: "game.property.winningWeapon" });
+    expect(r.winningPieceToState).toBe("game.property.winningWeapon");
   });
 
-  it("rejects rankOrder with fewer than 2 entries", () => {
-    fail(TrumpMechanicSchema, { ...base, rankOrder: ["A"] });
+  it("accepts winningPieceToState without winnerToState", () => {
+    const { winnerToState: _w, ...noWinner } = base;
+    const r = okTrump({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
+    expect(r.winnerToState).toBeUndefined();
+    expect(r.winningPieceToState).toBe("game.property.winningWeapon");
+  });
+
+  it("defaults comparison direction to highest", () => {
+    const r = okTrump({
+      ...base,
+      rules: [{ kind: "comparison", property: "power" }],
+    });
+    expect(r.rules[0]).toMatchObject({ direction: "highest" });
+  });
+
+  it("rejects an empty rules list", () => {
+    fail(TrumpMechanicSchema, { ...base, rules: [] });
+  });
+
+  it("allows omitting winnerToState at the schema level (validator enforces at-least-one)", () => {
+    const { winnerToState: _w, ...noWinner } = base;
+    const r = okTrump({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
+    expect(r.winnerToState).toBeUndefined();
   });
 
   it("rejects missing evaluationInventory", () => {
@@ -319,11 +362,15 @@ describe("GameMechanicSchema (union)", () => {
   it("dispatches chaincraft:trump", () => {
     const r = GameMechanicSchema.parse({
       kind: "chaincraft:trump",
-      suitProperty: "suit",
-      rankProperty: "rank",
-      rankOrder: ["9", "10", "J", "Q", "K", "A"],
-      trumpSuit: { var: "game.property.trumpSuit" },
-      evaluationInventory: "trick-pile",
+      evaluationInventory: "arena",
+      winnerToState: "game.property.roundWinner",
+      rules: [
+        {
+          kind: "matrix",
+          property: "rps",
+          beats: { rock: ["scissors"], paper: ["rock"], scissors: ["paper"] },
+        },
+      ],
     });
     expect(r.kind).toBe("chaincraft:trump");
   });

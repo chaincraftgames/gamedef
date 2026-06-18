@@ -29,6 +29,8 @@ import {
   EffectCallsSchema,
   EffectCallRefSchema,
   EffectSchema,
+  LlmEffectSchema,
+  LlmInputSchema,
 } from "#gamedef/modules/effects.js";
 
 // ---------------------------------------------------------------------------
@@ -201,10 +203,10 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
         to: "rotate-cw",
       },
 
-      // prose: complex resolution logic
+      // custom: complex resolution logic
       {
         id: "resolve-challenge",
-        kind: "prose",
+        kind: "custom",
         description:
           "Count all dice showing the bid face value across all players. " +
           "If the total meets or exceeds the bid quantity, the challenger loses one die. " +
@@ -522,6 +524,84 @@ describe("EffectCallRefSchema", () => {
 
   it("rejects missing ref field", () => {
     const r = EffectCallRefSchema.safeParse({ name: "draw-card" });
+    expect(r.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LlmInputSchema / LlmEffectSchema inputs
+// ---------------------------------------------------------------------------
+
+describe("LlmInputSchema", () => {
+  it("accepts a state source", () => {
+    const r = LlmInputSchema.safeParse({
+      name: "roundWinner",
+      state: "game.property.roundWinner",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a pieces source with a properties whitelist", () => {
+    const r = LlmInputSchema.safeParse({
+      name: "arenaWeapons",
+      pieces: { inventory: "arena", select: "all" },
+      properties: ["description"],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a param source", () => {
+    const r = LlmInputSchema.safeParse({ name: "wager", param: "wagerAmount" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects more than one source", () => {
+    const r = LlmInputSchema.safeParse({
+      name: "x",
+      state: "game.property.x",
+      param: "x",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects no source", () => {
+    const r = LlmInputSchema.safeParse({ name: "x" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("LlmEffectSchema", () => {
+  const base = {
+    kind: "llm-effect",
+    prompt: { computation: "Narrate the clash." },
+    outputs: [{ field: "roundNarrative", message: { to: "all" } }],
+  };
+
+  it("accepts an effect with declared inputs", () => {
+    const r = LlmEffectSchema.safeParse({
+      ...base,
+      inputs: [
+        { name: "roundWinner", state: "game.property.roundWinner" },
+        {
+          name: "arenaWeapons",
+          pieces: { inventory: "arena", select: "all" },
+          properties: ["description"],
+        },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts an effect with no inputs (pure ceremony)", () => {
+    const r = LlmEffectSchema.safeParse(base);
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects an input with no source", () => {
+    const r = LlmEffectSchema.safeParse({
+      ...base,
+      inputs: [{ name: "bad" }],
+    });
     expect(r.success).toBe(false);
   });
 });

@@ -23,7 +23,7 @@
  *   to a single action or flow step.
  * - { param: id } in PropertyValue is only valid in inline effects inside an action that
  *   declares a matching input id. The engine resolves by name — no bind map needed.
- * - 'prose' kind is the escape hatch for logic that doesn't fit the primitive kinds.
+ * - 'custom' kind is the escape hatch for logic that doesn't fit the primitive kinds.
  *   Avoid overusing it — the primitive kinds cover the common cases deterministically.
  * - PieceSelector is shared across move/flip/update/roll/orient.
  * - 'player-chooses' selector: the engine prompts the active player at runtime.
@@ -48,7 +48,7 @@
  *     value: { delta: 2 }
  *
  *   - id: resolve-combat
- *     kind: prose
+ *     kind: custom
  *     description: >
  *       Compare power totals of face-up cards. Higher total scores 1 point.
  *       On a tie no points scored; both players draw a card.
@@ -84,10 +84,11 @@
  */
 
 import { z } from "zod";
-import { InventoryPlacementSchema } from "./inventories.js";
+import { InventoryPlacementSchema } from "#chaincraft/inventories.js";
+import { JsonLogicSchema } from "#chaincraft/common.js";
 
 // ---------------------------------------------------------------------------
-// Piece selector (shared across move, flip, update, roll, orient)
+// Gamepiece selector (shared across move, flip, update, roll, orient)
 // ---------------------------------------------------------------------------
 
 /**
@@ -102,7 +103,7 @@ import { InventoryPlacementSchema } from "./inventories.js";
  * { player: { stateRef: game.property.roundLoser }, inventory: player-cup, select: top }
  * ```
  */
-export const PieceSelectorSchema = z
+export const GamepieceSelectorSchema = z
   .object({
     player: z
       .object({
@@ -329,7 +330,7 @@ export const PropertyValueSchema = z
 export const MoveEffectSchema = z
   .object({
     kind: z.literal("move"),
-    from: PieceSelectorSchema.describe("Which pieces to move and where to take them from."),
+    from: GamepieceSelectorSchema.describe("Which pieces to move and where to take them from."),
     to: InventoryTargetSchema.describe(
       "Destination inventory and position. When from.inventory === to.inventory, " +
         "the engine repositions the piece within the same inventory.",
@@ -361,7 +362,7 @@ export const MoveEffectSchema = z
 export const FlipEffectSchema = z
   .object({
     kind: z.literal("flip"),
-    pieces: PieceSelectorSchema.describe("Which pieces to flip."),
+    pieces: GamepieceSelectorSchema.describe("Which pieces to flip."),
     to: z
       .enum(["face-up", "face-down", "toggle"])
       .describe(
@@ -396,7 +397,7 @@ export const FlipEffectSchema = z
 export const UpdateEffectSchema = z
   .object({
     kind: z.literal("update"),
-    pieces: PieceSelectorSchema.describe("Which pieces to update."),
+    pieces: GamepieceSelectorSchema.describe("Which pieces to update."),
     property: z
       .string()
       .describe(
@@ -455,7 +456,7 @@ export const ShuffleEffectSchema = z
 export const DistributeEffectSchema = z
   .object({
     kind: z.literal("distribute"),
-    from: PieceSelectorSchema.describe(
+    from: GamepieceSelectorSchema.describe(
       "Source inventory and selection method. 'count' on the selector is ignored — " +
         "use the top-level 'count' field.",
     ),
@@ -496,12 +497,110 @@ export const DistributeEffectSchema = z
 export const RollEffectSchema = z
   .object({
     kind: z.literal("roll"),
-    pieces: PieceSelectorSchema.describe(
+    pieces: GamepieceSelectorSchema.describe(
       "Which die pieces to roll. Should select pieces with faceCount defined on their type.",
     ),
   })
   .describe(
     "Randomizes the face value of die pieces. Engine picks a random face in [1, faceCount].",
+  );
+
+/**
+ * Pick a random value and write it to a game state property — no physical die
+ * required (use 'roll' for that). Two shapes, chosen by which field is present:
+ *   - options : a weighted list of explicit values (booleans, numbers, or strings).
+ *               Omit weights for an equal-probability pick. This subsumes coin flips
+ *               (true/false) and enum choices (suits, etc.).
+ *   - range   : a uniform random integer in [min, max].
+ *
+ * @example 25% chance of a dramatic reversal (weighted boolean)
+ * ```yaml
+ * id: roll-reversal
+ * kind: set-random
+ * path: game.property.includeReversal
+ * options:
+ *   - value: true
+ *     weight: 0.25
+ *   - value: false
+ *     weight: 0.75
+ * ```
+ * @example Pick a random suit (equal probability)
+ * ```yaml
+ * id: choose-trump-suit
+ * kind: set-random
+ * path: game.property.trumpSuit
+ * options:
+ *   - value: hearts
+ *   - value: diamonds
+ *   - value: clubs
+ *   - value: spades
+ * ```
+ * @example Roll a d6 result into state (numeric range)
+ * ```yaml
+ * id: roll-initiative
+ * kind: set-random
+ * path: game.property.initiative
+ * range:
+ *   min: 1
+ *   max: 6
+ * ```
+ */
+export const SetRandomEffectSchema = z
+  .object({
+    kind: z.literal("set-random"),
+    source: z
+      .discriminatedUnion("kind", [
+        z
+          .object({
+            kind: z.literal("options"),
+            options: z
+              .array(
+                z
+                  .object({
+                    value: z
+                      .union([z.string(), z.number(), z.boolean()])
+                      .describe("A possible result value (string, number, or boolean)."),
+                    weight: z
+                      .number()
+                      .positive()
+                      .optional()
+                      .describe(
+                        "Relative likelihood of this option. Weights are normalized, so they " +
+                          "need not sum to 1 — using probabilities that sum to 1 (e.g. 0.25/0.75) " +
+                          "reads naturally and works directly. Omit weights on all options for an " +
+                          "equal-probability pick.",
+                      ),
+                  })
+                  .describe("One weighted candidate value."),
+              )
+              .min(2)
+              .describe("The candidate values to choose from (at least two)."),
+          })
+          .describe(
+            "Weighted choice over an explicit list of values. Covers coin flips, enum picks, " +
+              "and any discrete weighted outcome.",
+          ),
+        z
+          .object({
+            kind: z.literal("range"),
+            min: z.number().int().describe("Inclusive lower bound."),
+            max: z.number().int().describe("Inclusive upper bound."),
+          })
+          .describe("Uniform random integer in [min, max]."),
+      ])
+      .describe("Where the random value comes from: a weighted 'options' list or a numeric 'range'."),
+    path: z
+      .string()
+      .describe(
+        "Dot-path to the game state property that receives the result " +
+          "(e.g. 'game.property.includeReversal'). Forward reference to a property " +
+          "declared in the state module whose type must be compatible with the result.",
+      ),
+  })
+  .describe(
+    "Picks a random value (from a weighted list of options or a numeric range) and writes it " +
+      "to a state property. Use for RNG that drives game logic (flags, initiative, suit " +
+      "selection). For rolling actual die pieces use 'roll' instead.",
   );
 
 /**
@@ -524,7 +623,7 @@ export const RollEffectSchema = z
 export const OrientEffectSchema = z
   .object({
     kind: z.literal("orient"),
-    pieces: PieceSelectorSchema.describe("Which pieces to reorient."),
+    pieces: GamepieceSelectorSchema.describe("Which pieces to reorient."),
     to: z
       .union([
         z
@@ -550,26 +649,26 @@ export const OrientEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
-// Prose effect (AI-generated engine code — escape hatch for complex logic)
+// Custom effect (escape hatch for logic that doesn't fit the primitive kinds)
 // ---------------------------------------------------------------------------
 
 /**
- * Use prose when the required logic doesn't fit neatly into the primitive kinds:
+ * Use custom when the required logic doesn't fit neatly into the primitive kinds:
  * conditional branching, multi-step resolution, comparisons across multiple pieces.
  *
  * @example Complex combat resolution
  * ```yaml
  * id: resolve-combat
- * kind: prose
+ * kind: custom
  * description: >
  *   Compare the sum of power values of all face-up combat cards in each player's
  *   combat zone. The player with the higher total wins and scores 1 point. On a
  *   tie, no points are scored and both players draw one card from the draw deck.
  * ```
  */
-export const ProseEffectSchema = z
+export const CustomEffectSchema = z
   .object({
-    kind: z.literal("prose"),
+    kind: z.literal("custom"),
     description: z
       .string()
       .describe(
@@ -580,7 +679,7 @@ export const ProseEffectSchema = z
   })
   .describe(
     "An effect whose logic is too complex for the primitive kinds. " +
-      "Described in prose; the AI generates the corresponding engine code. " +
+      "Described in plain English; the AI generates the corresponding engine code. " +
       "Use sparingly — prefer primitive kinds for deterministic, testable effects.",
   );
 
@@ -645,7 +744,7 @@ export const MessageRecipientSchema = z
 export const RevealEffectSchema = z
   .object({
     kind: z.literal("reveal"),
-    pieces: PieceSelectorSchema.describe("Which pieces to temporarily reveal."),
+    pieces: GamepieceSelectorSchema.describe("Which pieces to temporarily reveal."),
     to: MessageRecipientSchema.describe(
       "Who can see the revealed pieces. " +
         "'actor': only the player whose turn it is. " +
@@ -678,7 +777,7 @@ export const RevealEffectSchema = z
 export const HideEffectSchema = z
   .object({
     kind: z.literal("hide"),
-    pieces: PieceSelectorSchema.describe(
+    pieces: GamepieceSelectorSchema.describe(
       "Which pieces to revert to their inventory's default visibility.",
     ),
   })
@@ -694,7 +793,6 @@ export const HideEffectSchema = z
  * kind: message
  * to: actor
  * template: "Your weapon '{{input.weaponDescription}}' has been registered."
- * visibility: private
  * ```
  * @example Phase announcement to all
  * ```yaml
@@ -707,7 +805,12 @@ export const HideEffectSchema = z
 export const MessageEffectSchema = z
   .object({
     kind: z.literal("message"),
-    to: MessageRecipientSchema,
+    to: MessageRecipientSchema.describe(
+      "Who receives this message. " +
+        "'all' or 'opponents' = broadcast (visible to those players). " +
+        "'actor' or a specific player ID = private (visible only to that player). " +
+        "'role:<id>' = delivered to players with that role only.",
+    ),
     template: z
       .string()
       .describe(
@@ -716,21 +819,12 @@ export const MessageEffectSchema = z
           "{{state.game.property.<id>}} and {{state.players.<playerId>.property.<id>}} " +
           "for game state. The engine resolves templates at execution time.",
       ),
-    visibility: z
-      .enum(["public", "private"])
-      .default("public")
-      .describe(
-        "Whether this message is visible to all players or only the recipient(s). " +
-          "'public': message is visible in the game log for all players. " +
-          "'private': message is delivered only to the 'to' target(s). " +
-          "Defaults to 'public'.",
-      ),
   })
   .describe(
     "Delivers a deterministic text message to one or more players. " +
       "No state mutation — output only. " +
-      "For non-text/visual games, engines that don't support messaging skip this effect. " +
-      "Use for action confirmations, phase announcements, and static flavor text. " +
+      "Visibility is determined by 'to': 'all'/'opponents'/'role:<id>' = broadcast; " +
+      "'actor' or player ID = private. " +
       "For AI-generated text use kind: llm-effect.",
   );
 
@@ -777,19 +871,18 @@ export const LlmOutputSchema = z
       ),
     message: z
       .object({
-        to: MessageRecipientSchema,
-        visibility: z
-          .enum(["public", "private"])
-          .default("public")
-          .describe(
-            "'public': visible in game log for all players. " +
-              "'private': delivered only to the 'to' target(s). Defaults to 'public'.",
-          ),
+        to: MessageRecipientSchema.describe(
+          "Who receives this output as a message. " +
+            "'all'/'opponents'/'role:<id>' = broadcast. " +
+            "'actor' or player ID = private.",
+        ),
       })
       .optional()
       .describe(
         "If present, deliver this field as a player message. " +
-          "The engine uses the LLM's raw text for this field as the message body.",
+          "The engine uses the LLM's raw text for this field as the message body. " +
+          "Visibility is determined by 'to': broadcast targets are visible to all addressed; " +
+          "'actor' and player ID targets are private.",
       ),
     stateWrite: z
       .string()
@@ -804,6 +897,77 @@ export const LlmOutputSchema = z
   .describe(
     "One named output field from an llm-effect call. " +
       "At least one of 'message' or 'stateWrite' must be present.",
+  );
+
+/**
+ * One declared input to an llm-effect: a named handle the engine resolves from
+ * game state, pieces, or an action parameter and injects into the prompt context
+ * (referenced as `{{<name>}}` in rules and computation). Declaring inputs makes
+ * the data the prompt depends on explicit and lets the spec restrict what the LLM
+ * sees — rather than burying dot-paths in prose for the engine to parse.
+ *
+ * Exactly one source — `state`, `pieces`, or `param` — must be provided.
+ *
+ * @example Inject a state property
+ * ```yaml
+ * name: roundWinner
+ * state: game.property.roundWinner
+ * ```
+ * @example Inject piece data, exposing only safe properties
+ * ```yaml
+ * name: arenaWeapons
+ * pieces: { inventory: arena, select: all }
+ * properties: [description]   # omit the hidden 'rps' so the LLM can't leak it
+ * ```
+ * @example Inject an action input (inline effect inside an action)
+ * ```yaml
+ * name: wager
+ * param: wagerAmount
+ * ```
+ */
+export const LlmInputSchema = z
+  .object({
+    name: z
+      .string()
+      .describe(
+        "Handle for this input inside the prompt, referenced as {{<name>}} in rules and computation.",
+      ),
+    state: z
+      .string()
+      .optional()
+      .describe(
+        "Dot-path to a game/player state property to inject " +
+          "(e.g. 'game.property.roundWinner'). Forward reference to the state module.",
+      ),
+    pieces: GamepieceSelectorSchema.optional().describe(
+      "Piece set whose data to inject into the prompt context. The engine serializes the " +
+        "selected pieces' visible properties (subject to 'properties').",
+    ),
+    properties: z
+      .array(z.string())
+      .min(1)
+      .optional()
+      .describe(
+        "Only with 'pieces': whitelist of piece property IDs to expose to the LLM. " +
+          "Omit hidden properties (e.g. 'rps') to keep them secret from narration. " +
+          "Omit this field entirely to expose every owner-visible property.",
+      ),
+    param: z
+      .string()
+      .optional()
+      .describe(
+        "Action input id to inject. Only valid in inline effects inside an action that " +
+          "declares a matching input id.",
+      ),
+  })
+  .refine(
+    (v) =>
+      [v.state, v.pieces, v.param].filter((x) => x !== undefined).length === 1,
+    { message: "Provide exactly one source: 'state', 'pieces', or 'param'." },
+  )
+  .describe(
+    "A named input the engine resolves and injects into the llm-effect prompt context as " +
+      "{{<name>}}. Exactly one of 'state', 'pieces', or 'param'.",
   );
 
 /**
@@ -828,18 +992,21 @@ export const LlmOutputSchema = z
  * ```yaml
  * id: resolve-round
  * kind: llm-effect
+ * inputs:
+ *   - name: roundWinner
+ *     state: game.property.roundWinner
+ *   - name: arenaWeapons
+ *     pieces: { inventory: arena, select: all }
+ *     properties: [description]   # hidden 'rps' stays secret
  * prompt:
  *   rules:
- *     - "Rock beats scissors, scissors beats paper, paper beats rock"
- *     - "Generate 2-4 sentence narrative with boisterous announcer style"
- *     - "Reference both weapons by name"
+ *     - "The winner has ALREADY been decided — read it from {{roundWinner}}; empty means a tie"
+ *     - "Generate a 2-4 sentence narrative with boisterous announcer style"
+ *     - "Reference both weapons in {{arenaWeapons}} by name"
  *   computation: >
- *     Compare selected weapons using their RPS mappings. Determine the winner.
- *     Generate round narrative. If includeReversal is true, build dramatic tension
- *     before revealing the outcome.
+ *     Narrate the clash between the weapons in {{arenaWeapons}}, consistent with
+ *     {{roundWinner}}. If includeReversal is true, build dramatic tension first.
  * outputs:
- *   - field: roundWinner
- *     stateWrite: game.property.roundWinner
  *   - field: roundNarrative
  *     message:
  *       to: all
@@ -866,6 +1033,17 @@ export const LlmOutputSchema = z
 export const LlmEffectSchema = z
   .object({
     kind: z.literal("llm-effect"),
+    inputs: z
+      .array(LlmInputSchema)
+      .optional()
+      .describe(
+        "Data the engine resolves and injects into the prompt context before the call, each " +
+          "referenced as {{<name>}} in rules/computation. Declare every game-state value, piece " +
+          "set, or action param the prompt depends on — rather than burying dot-paths in prose — " +
+          "so the engine can supply it and the spec can restrict what the LLM sees " +
+          "(e.g. exposing a weapon's description but not its hidden class). The player roster and " +
+          "metadata are always available implicitly. Omit for pure ceremony that needs no game data.",
+      ),
     prompt: z
       .object({
         rules: z
@@ -904,6 +1082,203 @@ export const LlmEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Generate-gamepiece-image effect (LLM image generation attached to a piece)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate an image for one or more pieces and store the resulting image
+ * reference on the piece. A no-op in engines that don't support image
+ * generation (text-only play continues unaffected).
+ *
+ * Mirrors game-builder's image-generation functions:
+ *   - mode 'described' → generateImageWithDescription(contextText, templateVars, config):
+ *       an LLM first writes an image description from the `source` property, then the
+ *       preset's prompt template renders it.
+ *   - mode 'direct' → generateImageDirect(templateVars, config):
+ *       `templateVars` are injected straight into the preset's prompt template, no
+ *       description step.
+ * The `imageType` selects the engine's preset config (model, dimensions, prompt
+ * template, optional description system prompt, negative prompt) by name — the same
+ * way `image_type` selects a preset today.
+ *
+ * @example Generate weapon art from its description (Absurd Armaments)
+ * ```yaml
+ * id: illustrate-weapon
+ * kind: generate-gamepiece-image
+ * pieces: { inventory: forge, select: top }
+ * imageType: token
+ * mode: described
+ * source: description
+ * target: imageUrl
+ * ```
+ * @example Direct render from template variables (no description step)
+ * ```yaml
+ * id: render-card
+ * kind: generate-gamepiece-image
+ * pieces: { inventory: arsenal, select: top }
+ * imageType: token
+ * mode: direct
+ * templateVars: { token_description: description, token_data: rps }
+ * target: imageUrl
+ * ```
+ */
+export const GenerateImageEffectSchema = z
+  .object({
+    kind: z.literal("generate-gamepiece-image"),
+    pieces: GamepieceSelectorSchema.describe(
+      "Which piece(s) to illustrate. The generator is invoked once per selected piece.",
+    ),
+    imageType: z
+      .string()
+      .describe(
+        "Named preset that selects the engine's image-generation config (`config` argument): " +
+          "model, dimensions, prompt template, optional description system prompt and negative " +
+          "prompt. Chosen by name the same way image_type selects a preset today " +
+          "(e.g. 'token', 'cartridge', 'raw'). Whether the preset is two-step or single-step " +
+          "is determined by `mode`.",
+      ),
+    mode: z
+      .enum(["described", "direct"])
+      .default("described")
+      .describe(
+        "Which generation flow to use. 'described' (two-step) mirrors " +
+          "generateImageWithDescription: an LLM writes an image description from `source`, then " +
+          "the preset's promptTemplate renders it. 'direct' (single-step) mirrors " +
+          "generateImageDirect: `templateVars` are injected straight into the promptTemplate " +
+          "with no description step.",
+      ),
+    source: z
+      .string()
+      .optional()
+      .describe(
+        "Property ID supplying the contextText for the 'described' flow (e.g. 'description'). " +
+          "Forward reference to a text property on the selected pieces' gamepiece type. " +
+          "Required when mode is 'described'; ignored when mode is 'direct'.",
+      ),
+    templateVars: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        "Additional {placeholder} substitutions for the preset's prompt template " +
+          "(the `templateVars` argument), as a map of placeholder name to a property ID or " +
+          "string literal. In the 'described' flow the LLM-written description is supplied " +
+          "automatically as {image_description}; in 'direct' mode these are the only inputs.",
+      ),
+    target: z
+      .string()
+      .describe(
+        "Property ID to store the generated image reference (URL or asset id) into — receives " +
+          "the function's return value. Forward reference to a mutable string property on the " +
+          "selected pieces' gamepiece type.",
+      ),
+  })
+  .describe(
+    "Generates an image for a piece and stores the image reference on the piece. Both `source` " +
+      "and `target` are property IDs on the selected piece type, keeping the effect piece-scoped. " +
+      "Mirrors game-builder's generateImageWithDescription (mode 'described') and generateImageDirect " +
+      "(mode 'direct'), with `imageType` selecting the preset config. No-op in engines without " +
+      "image support — text-only play is unaffected.",
+  );
+
+// ---------------------------------------------------------------------------
+// Player target (who a player-scoped effect applies to)
+//
+// By default, player-scoped effects target the acting player. Use a target
+// to apply effects to other players: a chosen opponent, all players, all
+// players except the actor, or players matching a condition.
+// ---------------------------------------------------------------------------
+
+/**
+ * @example Target a player chosen by the actor
+ * ```yaml
+ * target: { kind: param, inputId: targetPlayer }
+ * ```
+ * @example Target all other players
+ * ```yaml
+ * target: { kind: all-other }
+ * ```
+ * @example Target players with >= 1 building (via computed property)
+ * ```yaml
+ * target:
+ *   kind: matching
+ *   condition: { ">": [{ "var": "player.property.buildingCount" }, 0] }
+ * ```
+ * @example Target players whose score exceeds 10
+ * ```yaml
+ * target:
+ *   kind: matching
+ *   condition: { ">=": [{ "var": "player.property.score" }, 10] }
+ * ```
+ * @example Compound condition — score > 5 AND not the actor
+ * ```yaml
+ * target:
+ *   kind: matching
+ *   condition:
+ *     and:
+ *       - { ">": [{ "var": "player.property.score" }, 5] }
+ *       - { "!=": [{ "var": "player.id" }, { "var": "actor.id" }] }
+ * ```
+ */
+export const PlayerTargetSchema = z
+  .discriminatedUnion("kind", [
+    z
+      .object({ kind: z.literal("actor") })
+      .describe("The acting player (default when target is omitted)."),
+    z
+      .object({ kind: z.literal("all") })
+      .describe("Every player in the game."),
+    z
+      .object({ kind: z.literal("all-other") })
+      .describe("All players except the actor."),
+    z
+      .object({
+        kind: z.literal("param"),
+        inputId: z
+          .string()
+          .describe(
+            "Action input ID whose value is the target player ID. " +
+              "Forward reference to an input declared on the enclosing action.",
+          ),
+      })
+      .describe(
+        "A specific player resolved from an action input (e.g., 'choose a target'). " +
+          "The input value must be a valid player ID.",
+      ),
+    z
+      .object({
+        kind: z.literal("stateRef"),
+        path: z
+          .string()
+          .describe(
+            "Dot-path to a string state property whose value is the target player ID. " +
+              "Format: 'game.property.<id>'. Resolved at runtime.",
+          ),
+      })
+      .describe(
+        "A player identified by a state property value (e.g., game.property.roundLoser).",
+      ),
+    z
+      .object({
+        kind: z.literal("matching"),
+        condition: JsonLogicSchema.describe(
+          "A JSONLogic expression evaluated per player. " +
+            "Available vars: 'player.property.<id>' (stored and computed state properties), " +
+            "'player.inventory.<id>.count' (total piece count in a player-scoped inventory). " +
+            "For filtered inventory counts (by piece type), define a computed property and " +
+            "reference it via 'player.property.<id>'. " +
+            "Supports standard JSONLogic operators: '>', '>=', '<', '<=', '==', '!=', 'and', 'or', '!'.",
+        ),
+      })
+      .describe(
+        "All players satisfying a JSONLogic condition evaluated against each player's state.",
+      ),
+  ])
+  .describe(
+    "Who a player-scoped effect applies to. Defaults to 'actor' when omitted. " +
+      "Use to target other players, all players, or players matching a condition.",
+  );
+
+// ---------------------------------------------------------------------------
 // Set-state effect
 // ---------------------------------------------------------------------------
 
@@ -913,7 +1288,10 @@ export const LlmEffectSchema = z
  *
  * Path format:
  *   game.property.<id>    → game-scoped property
- *   player.property.<id>  → acting player's per-player property
+ *   player.property.<id>  → target player's per-player property
+ *
+ * When `path` starts with 'player.property.', the `target` field determines
+ * which player(s) are affected. Defaults to the acting player when omitted.
  *
  * @example Reset the bid quantity to 0 after a challenge
  * ```yaml
@@ -927,17 +1305,37 @@ export const LlmEffectSchema = z
  * path: game.property.currentBidQuantity
  * value: { param: quantity }
  * ```
- * @example Eliminate a player
+ * @example Eliminate the acting player
  * ```yaml
  * kind: set-state
  * path: player.property.isActive
  * value: false
  * ```
- * @example Decrement active player count
+ * @example Deal 2 damage to a chosen opponent
  * ```yaml
  * kind: set-state
- * path: game.property.activePlayers
+ * path: player.property.health
+ * value: { delta: -2 }
+ * target: { kind: param, inputId: targetPlayer }
+ * ```
+ * @example All other players lose 1 gold
+ * ```yaml
+ * kind: set-state
+ * path: player.property.gold
  * value: { delta: -1 }
+ * target: { kind: all-other }
+ * ```
+ * @example Tax all players who have >= 1 building
+ * ```yaml
+ * kind: set-state
+ * path: player.property.gold
+ * value: { delta: -1 }
+ * target:
+ *   kind: matching
+ *   condition:
+ *     property: buildingCount
+ *     operator: gte
+ *     value: 1
  * ```
  */
 export const SetStateEffectSchema = z
@@ -948,16 +1346,21 @@ export const SetStateEffectSchema = z
       .describe(
         "Dot-path to the state property to write. " +
           "Format: 'game.property.<id>' for game-scoped state, " +
-          "'player.property.<id>' for the acting player's per-player state. " +
+          "'player.property.<id>' for player-scoped state. " +
           "Forward reference to a property declared in the state module.",
       ),
     value: PropertyValueSchema.describe(
       "New value to write, relative delta, or param reference. " +
         "Same vocabulary as update effects — literal, delta, toggle, or param.",
     ),
+    target: PlayerTargetSchema.optional().describe(
+      "Which player(s) to apply this effect to when the path targets a player property. " +
+        "Defaults to the acting player when omitted. Ignored for game-scoped paths.",
+    ),
   })
   .describe(
     "Writes to abstract game or player state declared in the state module. " +
+      "Use 'target' to apply player-scoped effects to specific or multiple players. " +
       "For piece property mutations use 'update'. " +
       "Readable in preconditions and flow endConditions via the same dot-path.",
   );
@@ -1014,11 +1417,13 @@ export const NamedEffectSchema = z.discriminatedUnion("kind", [
   ShuffleEffectSchema.extend(namedEffectBase),
   DistributeEffectSchema.extend(namedEffectBase),
   RollEffectSchema.extend(namedEffectBase),
+  SetRandomEffectSchema.extend(namedEffectBase),
   OrientEffectSchema.extend(namedEffectBase),
-  ProseEffectSchema.extend(namedEffectBase),
+  CustomEffectSchema.extend(namedEffectBase),
   CancelEffectSchema.extend(namedEffectBase),
   MessageEffectSchema.extend(namedEffectBase),
   LlmEffectSchema.extend(namedEffectBase),
+  GenerateImageEffectSchema.extend(namedEffectBase),
 ]).describe(
   "A named, concrete, reusable effect stored in the effects module. " +
     "Always fully self-contained — all values are literal. " +
@@ -1063,11 +1468,13 @@ export const EffectSchema = z.discriminatedUnion("kind", [
   ShuffleEffectSchema,
   DistributeEffectSchema,
   RollEffectSchema,
+  SetRandomEffectSchema,
   OrientEffectSchema,
-  ProseEffectSchema,
+  CustomEffectSchema,
   CancelEffectSchema,
   MessageEffectSchema,
   LlmEffectSchema,
+  GenerateImageEffectSchema,
 ]);
 
 /**
@@ -1130,7 +1537,7 @@ export const EffectCallsSchema = z
 // Types
 // ---------------------------------------------------------------------------
 
-export type PieceSelector = z.infer<typeof PieceSelectorSchema>;
+export type GamepieceSelector = z.infer<typeof GamepieceSelectorSchema>;
 export type InventoryPosition = z.infer<typeof InventoryPlacementSchema>;
 export type InventoryTarget = z.infer<typeof InventoryTargetSchema>;
 export type DistributeTarget = z.infer<typeof DistributeTargetSchema>;
@@ -1144,13 +1551,15 @@ export type SetStateEffect = z.infer<typeof SetStateEffectSchema>;
 export type ShuffleEffect = z.infer<typeof ShuffleEffectSchema>;
 export type DistributeEffect = z.infer<typeof DistributeEffectSchema>;
 export type RollEffect = z.infer<typeof RollEffectSchema>;
+export type SetRandomEffect = z.infer<typeof SetRandomEffectSchema>;
 export type OrientEffect = z.infer<typeof OrientEffectSchema>;
-export type ProseEffect = z.infer<typeof ProseEffectSchema>;
+export type CustomEffect = z.infer<typeof CustomEffectSchema>;
 export type CancelEffect = z.infer<typeof CancelEffectSchema>;
 export type MessageRecipient = z.infer<typeof MessageRecipientSchema>;
 export type MessageEffect = z.infer<typeof MessageEffectSchema>;
 export type LlmOutput = z.infer<typeof LlmOutputSchema>;
-export type LlmEffect = z.infer<typeof LlmEffectSchema>;
+export type LlmInput = z.infer<typeof LlmInputSchema>;
+export type LlmEffect = z.infer<typeof LlmEffectSchema>;export type GenerateImageEffect = z.infer<typeof GenerateImageEffectSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
 export type NamedEffect = z.infer<typeof NamedEffectSchema>;
 export type EffectsModule = z.infer<typeof EffectsModuleSchema>;

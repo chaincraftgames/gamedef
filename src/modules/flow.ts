@@ -620,6 +620,16 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
                 "50 points triggers a final round for all other players). " +
                 "Only meaningful with endCondition; ignored when using count. Defaults to false.",
             ),
+          writeIterationTo: z
+            .string()
+            .optional()
+            .describe(
+              "Dot-path to a game state integer property (e.g. 'game.property.currentRound'). " +
+                "When set, the engine automatically writes the current 1-based iteration number " +
+                "to this property at the start of each iteration, eliminating the need for a " +
+                "manual set-state effect in onComplete hooks. " +
+                "Forward reference to a property declared in the state module.",
+            ),
           children: z
             .array(FlowNodeSchema)
             .min(1)
