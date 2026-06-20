@@ -84,8 +84,8 @@
  */
 
 import { z } from "zod";
-import { InventoryPlacementSchema } from "#chaincraft/inventories.js";
-import { JsonLogicSchema } from "#chaincraft/common.js";
+import { InventoryPlacementSchema } from "#gamedef/modules/inventories.js";
+import { JsonLogicSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // Gamepiece selector (shared across move, flip, update, roll, orient)
