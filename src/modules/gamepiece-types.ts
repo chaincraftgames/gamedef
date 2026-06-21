@@ -66,6 +66,7 @@ import { z } from "zod";
 import { JsonLogicSchema } from "./common.js";
 import { PieceMechanicSchema } from "#gamedef/mechanics/index.js";
 
+
 // ---------------------------------------------------------------------------
 // Property value types
 // ---------------------------------------------------------------------------
@@ -275,6 +276,27 @@ export const InventorySlotSchema = z
  * description: This card's unique triggered ability
  * ```
  */
+export const PassiveSlotSchema = z
+  .object({
+    id: z
+      .string()
+      .describe(
+        "Slot identifier. Referenced in catalog passiveBindings to bind a named or inline " +
+          "passive effect to this piece instance. The catalog entry fills in which specific " +
+          "passive occupies this slot — enabling different instances of the same type to " +
+          "carry different (or no) passives.",
+      ),
+    description: z
+      .string()
+      .optional()
+      .describe("Human-readable description of what kind of passive this slot holds."),
+  })
+  .describe(
+    "A named binding point for a piece-instance passive effect. " +
+      "Defined on the type; the catalog entry provides the actual passive. " +
+      "This decouples piece type structure from per-card passive effects.",
+  );
+
 export const ActionSlotSchema = z
   .object({
     id: z
@@ -382,6 +404,15 @@ export const GamepieceTypeSchema = z
           "Mechanic-generated slot IDs share the namespace with actionSlots[]; IDs must be unique. " +
           "Omit if this piece type has no mechanic-driven behaviour.",
       ),
+    passiveSlots: z
+      .array(PassiveSlotSchema)
+      .optional()
+      .describe(
+        "Named binding points for piece-instance passive effects. " +
+          "The catalog entry fills in which passive (by ID reference or inline definition) " +
+          "occupies each slot — so different instances of the same type can have different passives. " +
+          "Omit for piece types that never carry passive effects.",
+      ),
     hasFaceState: z
       .boolean()
       .default(false)
@@ -474,6 +505,7 @@ export type FieldVisibility = PropertyVisibility;
 /** @deprecated use GamepieceProperty */
 export type GamepieceField = GamepieceProperty;
 export type InventorySlot = z.infer<typeof InventorySlotSchema>;
+export type PassiveSlot = z.infer<typeof PassiveSlotSchema>;
 export type ActionSlot = z.infer<typeof ActionSlotSchema>;
 export type GamepieceType = z.infer<typeof GamepieceTypeSchema>;
 export type GamepieceTypesModule = z.infer<typeof GamepieceTypesModuleSchema>;

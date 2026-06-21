@@ -62,6 +62,47 @@ Examples: ore smelter, alchemy, crafting bench, trade route.
 
 ---
 
+### `chaincraft:npc-behavior`
+**Status**: Not yet designed
+
+Scripted, game-controlled behavior for a gamepiece (monster, enemy, NPC). Fires
+automatically when a named trigger effect executes — no player choice involved.
+Selects a behavior from a weighted list, respecting per-behavior cooldowns. The
+selected behavior's effects fire against a target (typically the acting player).
+
+Key config (tentative):
+- `trigger` — named effect ID that initiates the NPC's turn (e.g. `resolve-monster-turn`,
+  called from a player turn's `onComplete` hook)
+- `target` — who the NPC acts against: `trigger-actor` (the player whose hook fired) |
+  `all-players` | `{ roles: [...] }`
+- `behaviors[]` — ordered list of possible behaviors:
+  - `id` — behavior identifier (also used as cooldown property name)
+  - `weight` — relative probability weight (engine sums all weights, rolls, picks proportionally)
+  - `cooldown` — number of triggers this behavior is unavailable after use (0 = no cooldown)
+  - `fallback` — if `true`, this behavior is used whenever the rolled behavior is on cooldown
+  - `effects` — inline effect list to execute when this behavior is selected
+
+Engine behavior:
+1. Sums weights of all non-cooldown behaviors, rolls
+2. If the selected behavior is on cooldown, finds the nearest `fallback: true` behavior
+3. Fires selected behavior's effects (target resolved at runtime)
+4. Decrements all active cooldowns; sets used behavior's cooldown counter
+5. Engine auto-injects a cooldown property per behavior onto the piece type
+
+Notes:
+- Purely reactive NPC responses (taking damage → counter) are better modeled as
+  passives on the piece type (already supported). `npc-behavior` is for *proactive*
+  NPC actions initiated on a trigger.
+- Spatial/AI behavior (pathfinding, chase logic, adjacency targeting) exceeds what any
+  structured mechanic can express — use `kind: custom` effects for those.
+- Cooldown is tracked per piece instance, so a game with multiple monster instances
+  tracks cooldowns independently per piece.
+
+Examples: Munchkin monster attacks (weighted randoms + cooldown on strong attack),
+dungeon crawler enemy turns, solo game AI opponents.
+
+---
+
 ## Game-level mechanics
 
 ### `chaincraft:score-track`
@@ -211,7 +252,11 @@ callable from actions and flow hooks.
 Key config (tentative):
 - `cardType` — gamepiece type ID for cards in this deck (forward ref to gamepiece-types)
 - `scope` — `game` (shared deck) | `player` (each player has their own draw/discard pair)
-- `reshuffleOn` — `empty` (default, reshuffle when draw pile runs out) | `manual` (explicit trigger only)
+- `reshuffleOn` — `empty` (default, reshuffle when draw pile runs out) | `low-water` (proactive,
+  reshuffle before draw if pile count < `reshuffleThreshold`) | `manual` (explicit trigger only)
+- `reshuffleThreshold` — minimum card count that triggers a proactive reshuffle when
+  `reshuffleOn: low-water`. E.g. `5` means "if fewer than 5 cards remain, reshuffle before drawing".
+  Required when `reshuffleOn: low-water`, ignored otherwise.
 - `revealDiscard` — whether the discard pile's top card is visible to all players (default true)
 
 Synthesizes:

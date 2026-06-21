@@ -344,3 +344,47 @@ describe("GamepieceTypesModuleSchema — rejections", () => {
     ).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Passive slots on gamepiece types
+// ---------------------------------------------------------------------------
+
+describe("GamepieceTypesModuleSchema — passiveSlots", () => {
+  it("accepts a piece type with a passive slot", () => {
+    const result = GamepieceTypesModuleSchema.parse({
+      types: [
+        {
+          id: "equipment",
+          category: "token",
+          passiveSlots: [
+            { id: "worn-passive", description: "The passive granted while this equipment is worn" },
+          ],
+        },
+      ],
+    });
+    expect(result.types[0].passiveSlots![0].id).toBe("worn-passive");
+  });
+
+  it("accepts a piece type with multiple passive slots", () => {
+    const result = GamepieceTypesModuleSchema.parse({
+      types: [
+        {
+          id: "dual-enchant",
+          category: "token",
+          passiveSlots: [
+            { id: "primary-passive" },
+            { id: "secondary-passive" },
+          ],
+        },
+      ],
+    });
+    expect(result.types[0].passiveSlots).toHaveLength(2);
+  });
+
+  it("accepts a piece type with no passiveSlots", () => {
+    const result = GamepieceTypesModuleSchema.parse({
+      types: [{ id: "plain-token", category: "token" }],
+    });
+    expect(result.types[0].passiveSlots).toBeUndefined();
+  });
+});

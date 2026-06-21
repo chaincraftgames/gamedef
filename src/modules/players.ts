@@ -28,6 +28,7 @@
  */
 
 import { z } from "zod";
+import { PassiveEffectSchema } from "#gamedef/modules/effects.js";
 
 // ---------------------------------------------------------------------------
 // Assignment timing — when a role is (re)assigned or re-evaluated
@@ -167,6 +168,14 @@ export const RoleDefinitionSchema = z
       .describe("Human-readable description of what this role means in the game."),
     assignment: RoleAssignmentSchema,
     visibility: RoleVisibilitySchema,
+    passives: z
+      .array(PassiveEffectSchema)
+      .optional()
+      .describe(
+        "Passive effects granted by this role. Enabled while a player holds the role. " +
+          "Fires automatically (no player choice) when the named trigger effect executes " +
+          "and the scope condition is met. Omit for roles with no passive abilities.",
+      ),
   })
   .describe(
     "A named player role. Roles are a typed player property. " +

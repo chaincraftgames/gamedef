@@ -835,6 +835,148 @@ export const InterruptWindowSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Win conditions (evaluated when the game ends)
+// ---------------------------------------------------------------------------
+
+const onVictoryField = {
+  onVictory: EffectCallsSchema.optional().describe(
+    "Effect calls to execute when this condition determines the winners. " +
+      "Fires after winConditions are evaluated and before the game session tears down. " +
+      "The reserved path 'game.winners' is populated with the winning player IDs " +
+      "before these hooks execute — use it to announce, narrate, or reward the winners. " +
+      "Omit for conditions that require no ceremony.",
+  ),
+};
+
+/**
+ * Ranking win condition — player with the best property value wins.
+ *
+ * @example Score-based victory (highest wins) with announcement
+ * ```yaml
+ * winConditions:
+ *   - rule: ranking
+ *     property: player.property.score
+ *     onVictory:
+ *       - ref: announce-winner
+ * ```
+ * @example Lowest penalty wins (golf)
+ * ```yaml
+ * winConditions:
+ *   - rule: ranking
+ *     property: player.property.penalties
+ *     order: lowest
+ * ```
+ */
+const RankingWinConditionSchema = z.object({
+  rule: z.literal("ranking"),
+  property: z
+    .string()
+    .describe(
+      "Player property path to rank by. E.g. 'player.property.score'. " +
+        "Evaluated at game end; the player(s) with the best value win.",
+    ),
+  order: z
+    .enum(["highest", "lowest"])
+    .default("highest")
+    .describe(
+      "'highest' (default): most wins (score, points, kills). " +
+        "'lowest': least wins (golf, fewest penalties).",
+    ),
+  tiebreak: z
+    .enum(["all-win", "no-winner"])
+    .default("all-win")
+    .describe(
+      "What happens when multiple players share the best value. " +
+        "'all-win' (default): all tied players are co-winners. " +
+        "'no-winner': a tie produces no winner.",
+    ),
+  ...onVictoryField,
+});
+
+/**
+ * Per-player condition win — all players satisfying the condition at game end win.
+ *
+ * @example Escape game — players who moved a piece to the exit inventory win
+ * ```yaml
+ * winConditions:
+ *   - rule: condition
+ *     condition: { ">=" : [{ var: "player.inventory.escaped.count" }, 1] }
+ *     onVictory:
+ *       - ref: announce-escapees
+ * ```
+ * @example Best-of — player who won enough rounds wins
+ * ```yaml
+ * winConditions:
+ *   - rule: condition
+ *     condition: { ">=": [{ var: "player.property.roundWins" }, 3] }
+ * ```
+ */
+const ConditionWinConditionSchema = z.object({
+  rule: z.literal("condition"),
+  condition: JsonLogicSchema.describe(
+    "JSONLogic expression evaluated per player when the game ends. " +
+      "Variable context: 'player.property.<id>', 'player.inventory.<id>.count'. " +
+      "All players for whom this evaluates to true are declared winners.",
+  ),
+  ...onVictoryField,
+});
+
+/**
+ * Role/team condition win — if a game-level condition is true at game end,
+ * all players holding the specified roles are declared winners.
+ *
+ * @example Asymmetric — each team gets its own victory ceremony
+ * ```yaml
+ * winConditions:
+ *   - rule: role-condition
+ *     condition: { ">=": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] }
+ *     winners:
+ *       roles: [werewolf]
+ *     onVictory:
+ *       - ref: wolves-win-ceremony
+ *   - rule: role-condition
+ *     condition: { "<": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] }
+ *     winners:
+ *       roles: [villager]
+ *     onVictory:
+ *       - ref: villagers-win-ceremony
+ * ```
+ */
+const RoleConditionWinConditionSchema = z.object({
+  rule: z.literal("role-condition"),
+  condition: JsonLogicSchema.describe(
+    "JSONLogic expression evaluated against game state when the game ends. " +
+      "Variable context: 'game.property.<id>', 'game.inventory.<id>.count'. " +
+      "If true, players holding any of the listed roles are declared winners.",
+  ),
+  winners: z
+    .object({
+      roles: z
+        .array(z.string())
+        .min(1)
+        .describe(
+          "Role IDs whose holders win when the condition is true. " +
+            "Forward references to role IDs in the players module.",
+        ),
+    })
+    .describe("Who wins when the condition is satisfied."),
+  ...onVictoryField,
+});
+
+export const WinConditionSchema = z
+  .discriminatedUnion("rule", [
+    RankingWinConditionSchema,
+    ConditionWinConditionSchema,
+    RoleConditionWinConditionSchema,
+  ])
+  .describe(
+    "A single win-determination rule evaluated when the game ends. " +
+      "Multiple conditions are evaluated in order; all matching conditions apply. " +
+      "Use onVictory on each condition for per-outcome ceremonies — " +
+      "'game.winners' is populated with matching player IDs before onVictory fires.",
+  );
+
+// ---------------------------------------------------------------------------
 // Game root node (top-level container — not a loop)
 // ---------------------------------------------------------------------------
 
@@ -891,6 +1033,18 @@ export const GameRootSchema = z
         "Interrupt windows active throughout the entire game. " +
           "Inherited by all descendant nodes.",
       ),
+    winConditions: z
+      .array(WinConditionSchema)
+      .optional()
+      .describe(
+        "Declarative rules for determining the winner(s) when the game ends. " +
+          "Evaluated after all children complete (i.e. after the last loop exits). " +
+          "'ranking': player with best property value wins. " +
+          "'condition': per-player check — all matching players win. " +
+          "'role-condition': game-level check — winning roles declared. " +
+          "Multiple conditions are evaluated in order; all that match contribute winners. " +
+          "Omit for games where outcome is purely narrative or tracked via custom effects.",
+      ),
   })
   .describe(
     "The top-level game container. Runs once — not a loop. " +
@@ -931,5 +1085,6 @@ type ActorSpec = z.infer<typeof ActorSpecSchema>;
 export type { TurnOrder, ActorSpec };
 export type FlowHooks = z.infer<typeof FlowHooksSchema>;
 export type InterruptWindow = z.infer<typeof InterruptWindowSchema>;
+export type WinCondition = z.infer<typeof WinConditionSchema>;
 export type GameRoot = z.infer<typeof GameRootSchema>;
 export type FlowModule = z.infer<typeof FlowModuleSchema>;

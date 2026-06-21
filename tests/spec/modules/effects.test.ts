@@ -63,11 +63,11 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
         to: { inventory: "player-tray" },
       },
 
-      // move: discard a die (player-chooses)
+      // move: discard a die (deterministic selection; player choice handled via action input)
       {
         id: "discard-die",
         kind: "move",
-        from: { inventory: "player-tray", select: "player-chooses", count: 1 },
+        from: { inventory: "player-tray", select: "random", count: 1 },
         to: { inventory: "discard-pile", at: { kind: "stack-top" } },
       },
 
@@ -603,5 +603,240 @@ describe("LlmEffectSchema", () => {
       inputs: [{ name: "bad" }],
     });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("PropertyValueSchema — var references", () => {
+  it("accepts a game property var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "hp",
+      value: { var: "game.property.baseDamage" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a player property var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "bonusValue",
+      value: { var: "player.property.relicCount" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a game inventory count var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "cardsLeft",
+      value: { var: "game.inventory.drawPile.count" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a player inventory count var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "handSize",
+      value: { var: "player.inventory.hand.count" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts delta with a literal number", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "score",
+      value: { delta: 5 },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts delta with a var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "totalDamage",
+      value: { delta: { var: "game.property.spellPower" } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects delta with invalid var reference structure", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "score",
+      value: { delta: { var: 123 } },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects var with non-string path", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "value",
+      value: { var: 123 },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts delta with var reference and negate: true", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "defense",
+      value: { delta: { var: "player.property.damageDealt", negate: true } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts delta with var reference and negate: false", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "score",
+      value: { delta: { var: "game.property.bonus", negate: false } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects negate flag on non-var delta", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "score",
+      value: { delta: { value: 5, negate: true } },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts mult with a literal number", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "damage",
+      value: { mult: 0.5 },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts mult with a var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "production",
+      value: { mult: { var: "player.property.workerCount" } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts mult with var and negate", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "velocity",
+      value: { mult: { var: "game.property.friction", negate: true } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects mult with non-number literal", () => {
+    const r = EffectSchema.safeParse({
+      kind: "update",
+      pieces: { inventory: "test", select: "top" },
+      property: "score",
+      value: { mult: "two" },
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Attenuate effect
+// ---------------------------------------------------------------------------
+
+describe("EffectsModuleSchema — attenuate effect", () => {
+  it("parses attenuate with delta adjustment as named effect", () => {
+    const result = ok({
+      effects: [{ id: "reduce-damage", kind: "attenuate", adjustment: { delta: 2 } }],
+    });
+    expect(result.effects[0].kind).toBe("attenuate");
+  });
+
+  it("parses attenuate with mult adjustment as named effect", () => {
+    const result = ok({
+      effects: [{ id: "halve-damage", kind: "attenuate", adjustment: { mult: 0.5 } }],
+    });
+    expect(result.effects[0].kind).toBe("attenuate");
+  });
+
+  it("parses attenuate as inline effect (EffectSchema)", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { delta: -1 },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects attenuate missing adjustment", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects attenuate with non-numeric delta", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { delta: "two" },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects attenuate with non-numeric mult", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { mult: "half" },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts attenuate delta with var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { delta: { var: "player.property.armorRating" } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts attenuate delta with var and negate", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { delta: { var: "player.property.curseStacks", negate: true } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts attenuate mult with var reference", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { mult: { var: "player.property.damageMultiplier" } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts attenuate mult with var and negate", () => {
+    const r = EffectSchema.safeParse({
+      kind: "attenuate",
+      adjustment: { mult: { var: "game.property.debuffFactor", negate: true } },
+    });
+    expect(r.success).toBe(true);
   });
 });

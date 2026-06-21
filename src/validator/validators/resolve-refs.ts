@@ -106,12 +106,65 @@ export class ResolveRefsValidator implements SpecValidator {
     });
 
     // catalog: typeId refs must exist in gamepieceTypes
+    // catalog: actionBindings keys must match actionSlots on the type, string values must exist in actions
+    // catalog: passiveBindings keys must match passiveSlots on the type, string values must exist in effects.passives
+    const passiveIds = new Set(spec.effects?.passives?.map((p) => p.id) ?? []);
+    const typeMap = new Map(
+      spec.gamepieceTypes?.types?.map((t) => [t.id, t]) ?? [],
+    );
+
     spec.catalog?.entries?.forEach((entry, ei) => {
       if (entry.typeId && !gamepieceTypeIds.has(entry.typeId)) {
         errors.push({
           path: `catalog.entries[${ei}].typeId`,
           message: `Gamepiece type "${entry.typeId}" not found in gamepieceTypes module`,
         });
+      }
+
+      const pieceType = entry.typeId ? typeMap.get(entry.typeId) : undefined;
+      const actionSlotIds = new Set(
+        (pieceType as Record<string, unknown> | undefined)?.actionSlots
+          ? ((pieceType as Record<string, unknown>).actionSlots as Array<{ id: string }>).map((s) => s.id)
+          : [],
+      );
+      const passiveSlotIds = new Set(
+        (pieceType as Record<string, unknown> | undefined)?.passiveSlots
+          ? ((pieceType as Record<string, unknown>).passiveSlots as Array<{ id: string }>).map((s) => s.id)
+          : [],
+      );
+
+      if (entry.actionBindings) {
+        for (const [slotId, value] of Object.entries(entry.actionBindings)) {
+          if (actionSlotIds.size > 0 && !actionSlotIds.has(slotId)) {
+            errors.push({
+              path: `catalog.entries[${ei}].actionBindings.${slotId}`,
+              message: `Action slot "${slotId}" not found on gamepiece type "${entry.typeId}"`,
+            });
+          }
+          if (typeof value === "string" && !actionIds.has(value)) {
+            errors.push({
+              path: `catalog.entries[${ei}].actionBindings.${slotId}`,
+              message: `Action "${value}" not found in actions module`,
+            });
+          }
+        }
+      }
+
+      if (entry.passiveBindings) {
+        for (const [slotId, value] of Object.entries(entry.passiveBindings)) {
+          if (passiveSlotIds.size > 0 && !passiveSlotIds.has(slotId)) {
+            errors.push({
+              path: `catalog.entries[${ei}].passiveBindings.${slotId}`,
+              message: `Passive slot "${slotId}" not found on gamepiece type "${entry.typeId}"`,
+            });
+          }
+          if (typeof value === "string" && !passiveIds.has(value)) {
+            errors.push({
+              path: `catalog.entries[${ei}].passiveBindings.${slotId}`,
+              message: `Passive "${value}" not found in effects.passives`,
+            });
+          }
+        }
       }
     });
 

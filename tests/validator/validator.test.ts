@@ -365,3 +365,165 @@ describe("Flow structural integrity", () => {
     expect(result.errors.some((e) => e.message.includes("nonexistent-phase"))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Catalog binding validation
+// ---------------------------------------------------------------------------
+
+describe("Catalog binding validation", () => {
+  it("errors when actionBindings references non-existent action", () => {
+    const result = validate(
+      minimalSpec({
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "card", actionBindings: { "play-effect": "nonexistent-action" } }],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("nonexistent-action"))).toBe(true);
+  });
+
+  it("errors when actionBindings key does not match an actionSlot", () => {
+    const result = validate(
+      minimalSpec({
+        effects: { effects: [makeEffect("e1")] },
+        actions: { actions: [makeAction("play-strike", "e1")] },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "card", actionBindings: { "bad-slot": "play-strike" } }],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("bad-slot"))).toBe(true);
+  });
+
+  it("passes when actionBindings key and value are valid", () => {
+    const result = validate(
+      minimalSpec({
+        effects: { effects: [makeEffect("e1")] },
+        actions: { actions: [makeAction("play-strike", "e1")] },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "card", actionBindings: { "play-effect": "play-strike" } }],
+        },
+      }),
+    );
+    const bindingErrors = result.errors.filter((e) => e.path.includes("actionBindings"));
+    expect(bindingErrors).toHaveLength(0);
+  });
+
+  it("errors when passiveBindings references non-existent passive", () => {
+    const result = validate(
+      minimalSpec({
+        effects: { effects: [makeEffect("e1")] },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "equipment", passiveBindings: { "worn-passive": "nonexistent-passive" } }],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("nonexistent-passive"))).toBe(true);
+  });
+
+  it("errors when passiveBindings key does not match a passiveSlot", () => {
+    const result = validate(
+      minimalSpec({
+        effects: {
+          effects: [makeEffect("e1")],
+          passives: [{
+            id: "armor-absorb",
+            trigger: ["deal-damage"],
+            scope: "owner-targeted",
+            effects: [{ kind: "cancel-effect" }],
+          }],
+        },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "equipment", passiveBindings: { "bad-slot": "armor-absorb" } }],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("bad-slot"))).toBe(true);
+  });
+
+  it("passes when passiveBindings key and value are valid", () => {
+    const result = validate(
+      minimalSpec({
+        effects: {
+          effects: [makeEffect("e1")],
+          passives: [{
+            id: "armor-absorb",
+            trigger: ["deal-damage"],
+            scope: "owner-targeted",
+            effects: [{ kind: "cancel-effect" }],
+          }],
+        },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+        },
+        catalog: {
+          entries: [{ typeId: "equipment", passiveBindings: { "worn-passive": "armor-absorb" } }],
+        },
+      }),
+    );
+    const bindingErrors = result.errors.filter((e) => e.path.includes("passiveBindings"));
+    expect(bindingErrors).toHaveLength(0);
+  });
+
+  it("allows inline action binding (skips action ID ref check)", () => {
+    const result = validate(
+      minimalSpec({
+        effects: { effects: [makeEffect("e1")] },
+        gamepieceTypes: {
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+        },
+        catalog: {
+          entries: [{
+            typeId: "card",
+            actionBindings: {
+              "play-effect": { label: "Inline Play", effects: [{ ref: "e1" }] },
+            },
+          }],
+        },
+      }),
+    );
+    const bindingErrors = result.errors.filter((e) => e.path.includes("actionBindings"));
+    expect(bindingErrors).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate passive IDs
+// ---------------------------------------------------------------------------
+
+describe("Duplicate passive ID detection", () => {
+  it("errors on duplicate passive IDs", () => {
+    const result = validate(
+      minimalSpec({
+        effects: {
+          effects: [makeEffect("e1")],
+          passives: [
+            { id: "armor", trigger: ["deal-damage"], scope: "owner-targeted", effects: [{ kind: "cancel-effect" }] },
+            { id: "armor", trigger: ["deal-damage"], scope: "owner-originated", effects: [{ kind: "cancel-effect" }] },
+          ],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes('"armor"'))).toBe(true);
+  });
+});

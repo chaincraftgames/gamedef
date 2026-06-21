@@ -501,3 +501,89 @@ describe("FlowModuleSchema — Rejection cases", () => {
     fail(baseLoop({ kind: "turn", actor: { roles: [] }, grammar: { kind: "action", ref: "noop" } }));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Win conditions
+// ---------------------------------------------------------------------------
+
+const baseGame = (winConditions: unknown[]) => ({
+  root: {
+    kind: "game",
+    winConditions,
+    children: [{ kind: "loop", count: 1, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
+  },
+});
+
+describe("FlowModuleSchema — winConditions", () => {
+  it("accepts a ranking win condition (highest score)", () => {
+    const result = ok(baseGame([{ rule: "ranking", property: "player.property.score" }]));
+    const wc = result.root.winConditions![0] as any;
+    expect(wc.rule).toBe("ranking");
+    expect(wc.property).toBe("player.property.score");
+    expect(wc.order).toBe("highest");       // default
+    expect(wc.tiebreak).toBe("all-win");    // default
+  });
+
+  it("accepts a ranking win condition (lowest wins)", () => {
+    const result = ok(baseGame([{ rule: "ranking", property: "player.property.penalties", order: "lowest" }]));
+    expect((result.root.winConditions![0] as any).order).toBe("lowest");
+  });
+
+  it("accepts a per-player condition win condition", () => {
+    const result = ok(baseGame([{
+      rule: "condition",
+      condition: { ">=": [{ var: "player.inventory.escaped.count" }, 1] },
+    }]));
+    expect((result.root.winConditions![0] as any).rule).toBe("condition");
+  });
+
+  it("accepts a role-condition win condition (asymmetric)", () => {
+    const result = ok(baseGame([
+      {
+        rule: "role-condition",
+        condition: { ">=": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] },
+        winners: { roles: ["werewolf"] },
+      },
+      {
+        rule: "role-condition",
+        condition: { "<": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] },
+        winners: { roles: ["villager"] },
+      },
+    ]));
+    expect(result.root.winConditions).toHaveLength(2);
+    expect((result.root.winConditions![0] as any).winners.roles).toEqual(["werewolf"]);
+  });
+
+  it("accepts multiple mixed win conditions", () => {
+    const result = ok(baseGame([
+      { rule: "ranking", property: "player.property.score" },
+      { rule: "condition", condition: { ">=": [{ var: "player.property.score" }, 100] } },
+    ]));
+    expect(result.root.winConditions).toHaveLength(2);
+  });
+
+  it("accepts a game with no winConditions", () => {
+    const result = ok({
+      root: {
+        kind: "game",
+        children: [{ kind: "loop", count: 1, children: [{ kind: "turn", actor: "active-player", grammar: { kind: "action", ref: "noop" } }] }],
+      },
+    });
+    expect(result.root.winConditions).toBeUndefined();
+  });
+
+  it("rejects role-condition missing winners", () => {
+    fail(baseGame([{
+      rule: "role-condition",
+      condition: { var: "game.property.haunted" },
+    }]));
+  });
+
+  it("rejects role-condition with empty roles", () => {
+    fail(baseGame([{
+      rule: "role-condition",
+      condition: { var: "game.property.haunted" },
+      winners: { roles: [] },
+    }]));
+  });
+});

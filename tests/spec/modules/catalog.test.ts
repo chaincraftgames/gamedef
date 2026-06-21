@@ -235,3 +235,130 @@ describe("CatalogModuleSchema — rejections", () => {
     fail({ entries: [{ typeId: "die", quantity: 1.5 }] });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Action bindings
+// ---------------------------------------------------------------------------
+
+describe("CatalogModuleSchema — actionBindings", () => {
+  it("accepts a string reference binding", () => {
+    const result = ok({
+      entries: [{
+        typeId: "card",
+        actionBindings: { "play-effect": "play-strike" },
+      }],
+    });
+    expect(result.entries[0].actionBindings!["play-effect"]).toBe("play-strike");
+  });
+
+  it("accepts an inline action binding", () => {
+    const result = ok({
+      entries: [{
+        typeId: "card",
+        properties: { name: "Fireball" },
+        actionBindings: {
+          "play-effect": {
+            label: "Play Fireball",
+            effects: [
+              { kind: "set-state", path: "game.property.enemyHp", value: { delta: -8 } },
+            ],
+          },
+        },
+      }],
+    });
+    const binding = result.entries[0].actionBindings!["play-effect"] as any;
+    expect(binding.label).toBe("Play Fireball");
+  });
+
+  it("accepts multiple action bindings on one entry", () => {
+    const result = ok({
+      entries: [{
+        typeId: "creature",
+        actionBindings: {
+          "attack": "melee-attack",
+          "special": "fireball",
+        },
+      }],
+    });
+    expect(Object.keys(result.entries[0].actionBindings!)).toHaveLength(2);
+  });
+
+  it("omitting actionBindings is valid", () => {
+    const result = ok({ entries: [{ typeId: "token" }] });
+    expect(result.entries[0].actionBindings).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Passive bindings
+// ---------------------------------------------------------------------------
+
+describe("CatalogModuleSchema — passiveBindings", () => {
+  it("accepts a string reference binding", () => {
+    const result = ok({
+      entries: [{
+        typeId: "equipment",
+        properties: { name: "Iron Armor" },
+        passiveBindings: { "worn-passive": "armor-absorb" },
+      }],
+    });
+    expect(result.entries[0].passiveBindings!["worn-passive"]).toBe("armor-absorb");
+  });
+
+  it("accepts an inline passive binding (attenuate)", () => {
+    const result = ok({
+      entries: [{
+        typeId: "equipment",
+        properties: { name: "Vampiric Blade" },
+        passiveBindings: {
+          "worn-passive": {
+            trigger: ["deal-damage"],
+            scope: "owner-originated",
+            effects: [
+              { kind: "set-state", path: "player.property.hp", value: { delta: 1 } },
+            ],
+          },
+        },
+      }],
+    });
+    const binding = result.entries[0].passiveBindings!["worn-passive"] as any;
+    expect(binding.scope).toBe("owner-originated");
+  });
+
+  it("accepts an inline passive binding (cancel-effect)", () => {
+    const result = ok({
+      entries: [{
+        typeId: "equipment",
+        passiveBindings: {
+          "worn-passive": {
+            trigger: ["deal-damage"],
+            scope: "owner-targeted",
+            effects: [{ kind: "cancel-effect" }],
+          },
+        },
+      }],
+    });
+    const binding = result.entries[0].passiveBindings!["worn-passive"] as any;
+    expect(binding.effects[0].kind).toBe("cancel-effect");
+  });
+
+  it("omitting passiveBindings is valid (piece has no passive)", () => {
+    const result = ok({ entries: [{ typeId: "equipment", properties: { name: "Plain Shield" } }] });
+    expect(result.entries[0].passiveBindings).toBeUndefined();
+  });
+
+  it("rejects inline passive binding with empty effects", () => {
+    fail({
+      entries: [{
+        typeId: "equipment",
+        passiveBindings: {
+          "worn-passive": {
+            trigger: ["deal-damage"],
+            scope: "owner-targeted",
+            effects: [],
+          },
+        },
+      }],
+    });
+  });
+});

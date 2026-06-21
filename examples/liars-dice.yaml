@@ -261,6 +261,16 @@ flow:
       onEnter:
         - ref: deal-dice        # once at game start — dice stay in cups all game
         - ref: roll-all-dice    # initial roll before the first round
+    winConditions:
+      - rule: condition
+        condition:
+          "==":
+            - var: player.property.isActive
+            - true
+        onVictory:
+          - kind: message
+            to: all
+            template: "{{game.winners[0]}} wins Liar's Dice — the last player with dice remaining!"
     children:
       - kind: loop              # game loop — runs until one player remains
         endCondition:

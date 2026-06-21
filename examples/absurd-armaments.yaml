@@ -134,6 +134,8 @@ state:
           Player ID of the overall game champion. Empty string while the game is in
           progress. Set by update-scores when a player reaches roundsToWin victories. The
           battle loop's endCondition checks this field.
+          NOTE: This property is retained for the battle loop endCondition. Winner
+          announcement uses game.winners (populated by the engine via winConditions.onVictory).
       - id: includeReversal
         type:
           kind: boolean
@@ -377,14 +379,15 @@ effects:
       value: false
 
     # ---------------------------------------------------------------------------
-    # Victory ceremony (fires when the battle loop exits after a winner is set)
+    # Victory ceremony (fired via winConditions.onVictory — game.winners populated
+    # by the engine with the winning player IDs before this effect executes)
     # ---------------------------------------------------------------------------
 
     - id: announce-victory
       kind: llm-effect
       inputs:
-        - name: gameWinner
-          state: game.property.gameWinner
+        - name: winners
+          state: game.winners           # engine-populated array of winning player IDs
       prompt:
         rules:
           - "Crown the champion with full game-show ceremony — confetti implied"
@@ -392,7 +395,7 @@ effects:
           - "Console the loser with a backhanded compliment"
           - "End with a bombastic sign-off catchphrase"
         computation: >-
-          The battle is over and {{gameWinner}} holds the champion's player ID. Generate a
+          The battle is over and {{winners}} holds the winning player ID(s). Generate a
           glorious victory announcement celebrating the winner, recapping their performance,
           and bidding farewell to the arena audience.
       outputs:
@@ -430,12 +433,14 @@ actions:
         Secretly send one weapon from your arsenal into the arena for this round's clash.
         Both players choose simultaneously; the picks stay hidden until both have committed,
         then are revealed together for resolution.
+      inputs:
+        - id: weapon
+          type: { kind: gamepiece-select, inventory: arsenal, count: 1 }
       effects:
         - kind: move
           from:
             inventory: arsenal
-            select: player-chooses
-            count: 1
+            select: { id: { param: weapon } }
           to:
             inventory: arena
 
@@ -446,6 +451,14 @@ flow:
       onEnter:
         - ref: deal-blank-weapons   # 3 blank weapons into each player's forge
         - ref: generate-opening
+    winConditions:
+      - rule: condition
+        condition:
+          ">=":
+            - var: player.property.roundsWon
+            - var: game.property.roundsToWin
+        onVictory:
+          - ref: announce-victory
     children:
       - kind: simultaneous       # weapon creation — both players build arsenals concurrently
           # Completes when both players finish their repeat-3 grammar.
@@ -472,9 +485,6 @@ flow:
             - var: game.property.gameWinner
             - ""
         writeIterationTo: game.property.currentRound
-        hooks:
-          onComplete:
-            - ref: announce-victory
         children:
           - kind: simultaneous   # weapon selection — both players pick secretly, simultaneously
             id: weapon-selection

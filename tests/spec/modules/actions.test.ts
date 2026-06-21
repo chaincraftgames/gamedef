@@ -119,15 +119,14 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         availableInSubflows: ["trade-phase"],
         inputs: [
           {
-            id: "count",
-            type: { kind: "integer", min: 1, max: 3 },
-            label: "How many",
+            id: "die-to-exchange",
+            type: { kind: "gamepiece-select", inventory: "player-tray", count: 1 },
           },
         ],
         effects: [
           {
             kind: "move",
-            from: { inventory: "player-tray", select: "player-chooses", count: 1 },
+            from: { inventory: "player-tray", select: { id: { param: "die-to-exchange" } } },
             to: { inventory: "exchange-pool" },
           },
         ],
@@ -376,5 +375,406 @@ describe("ActionsModuleSchema — rejections", () => {
         },
       ],
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action input kinds: gamepiece-select, player-select, inventory-position
+// ---------------------------------------------------------------------------
+
+describe("ActionsModuleSchema — selection inputs", () => {
+  it("accepts gamepiece-select input", () => {
+    ok({
+      actions: [
+        {
+          id: "discard",
+          inputs: [
+            {
+              id: "card",
+              type: { kind: "gamepiece-select", inventory: "player-hand" },
+              label: "Choose card",
+            },
+          ],
+          effects: [
+            {
+              kind: "move",
+              from: { inventory: "player-hand", select: { id: { param: "card" } } },
+              to: { inventory: "discard-pile" },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("accepts gamepiece-select with ofType and count", () => {
+    ok({
+      actions: [
+        {
+          id: "draft",
+          inputs: [
+            {
+              id: "picks",
+              type: { kind: "gamepiece-select", inventory: "draft-hand", ofType: "card", count: 2 },
+              label: "Choose 2 cards",
+            },
+          ],
+          effects: [{ ref: "add-to-hand" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts gamepiece-select with fromPlayer referencing prior input", () => {
+    ok({
+      actions: [
+        {
+          id: "steal",
+          inputs: [
+            {
+              id: "target",
+              type: { kind: "player-select", excludeSelf: true },
+              label: "Choose opponent",
+            },
+            {
+              id: "card",
+              type: { kind: "gamepiece-select", inventory: "player-hand", fromPlayer: { param: "target" } },
+              label: "Choose card to steal",
+            },
+          ],
+          effects: [
+            {
+              kind: "move",
+              from: { player: { param: "target" }, inventory: "player-hand", select: { id: { param: "card" } } },
+              to: { inventory: "player-hand" },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("accepts gamepiece-select with fromPlayer 'self'", () => {
+    ok({
+      actions: [
+        {
+          id: "play-card",
+          inputs: [
+            {
+              id: "card",
+              type: { kind: "gamepiece-select", inventory: "player-hand", fromPlayer: "self" },
+            },
+          ],
+          effects: [{ ref: "play" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts gamepiece-select with JsonLogic filter", () => {
+    ok({
+      actions: [
+        {
+          id: "select-creature",
+          inputs: [
+            {
+              id: "creature",
+              type: {
+                kind: "gamepiece-select",
+                inventory: "battlefield",
+                filter: { ">=": [{ var: "piece.property.hp" }, 1] },
+              },
+            },
+          ],
+          effects: [{ ref: "attack" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts player-select input", () => {
+    ok({
+      actions: [
+        {
+          id: "target-player",
+          inputs: [
+            {
+              id: "opponent",
+              type: { kind: "player-select", excludeSelf: true },
+              label: "Choose opponent",
+            },
+          ],
+          effects: [{ ref: "attack-player" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts player-select with JsonLogic filter", () => {
+    ok({
+      actions: [
+        {
+          id: "heal-ally",
+          inputs: [
+            {
+              id: "ally",
+              type: {
+                kind: "player-select",
+                filter: { "<": [{ var: "player.property.hp" }, { var: "player.property.maxHp" }] },
+              },
+            },
+          ],
+          effects: [{ ref: "heal" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts inventory-position input", () => {
+    ok({
+      actions: [
+        {
+          id: "deploy",
+          inputs: [
+            {
+              id: "unit",
+              type: { kind: "gamepiece-select", inventory: "reserves" },
+            },
+            {
+              id: "cell",
+              type: { kind: "inventory-position", inventory: "battle-grid" },
+              label: "Choose position",
+            },
+          ],
+          effects: [
+            {
+              kind: "move",
+              from: { inventory: "reserves", select: { id: { param: "unit" } } },
+              to: { inventory: "battle-grid", at: { param: "cell" } },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("accepts inventory-position with fromPlayer", () => {
+    ok({
+      actions: [
+        {
+          id: "sabotage",
+          inputs: [
+            {
+              id: "target",
+              type: { kind: "player-select", excludeSelf: true },
+            },
+            {
+              id: "slot",
+              type: { kind: "inventory-position", inventory: "board", fromPlayer: { param: "target" } },
+            },
+          ],
+          effects: [{ ref: "destroy-at" }],
+        },
+      ],
+    });
+  });
+
+  it("rejects gamepiece-select missing inventory", () => {
+    fail({
+      actions: [
+        {
+          id: "bad",
+          inputs: [
+            { id: "card", type: { kind: "gamepiece-select" } },
+          ],
+          effects: [{ ref: "x" }],
+        },
+      ],
+    });
+  });
+
+  it("rejects inventory-position missing inventory", () => {
+    fail({
+      actions: [
+        {
+          id: "bad",
+          inputs: [
+            { id: "cell", type: { kind: "inventory-position" } },
+          ],
+          effects: [{ ref: "x" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts param-ref in GamepieceSelector.select", () => {
+    ok({
+      actions: [
+        {
+          id: "update-chosen",
+          inputs: [
+            { id: "piece", type: { kind: "gamepiece-select", inventory: "board" } },
+          ],
+          effects: [
+            {
+              kind: "update",
+              pieces: { inventory: "board", select: { id: { param: "piece" } } },
+              property: "activated",
+              value: true,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("accepts param-ref in InventoryTarget.player", () => {
+    ok({
+      actions: [
+        {
+          id: "gift",
+          inputs: [
+            { id: "recipient", type: { kind: "player-select", excludeSelf: true } },
+          ],
+          effects: [
+            {
+              kind: "move",
+              from: { inventory: "player-hand", select: "top" },
+              to: { player: { param: "recipient" }, inventory: "player-hand" },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("accepts stateRef in InventoryTarget.player", () => {
+    ok({
+      actions: [
+        {
+          id: "punish",
+          effects: [
+            {
+              kind: "move",
+              from: { inventory: "penalty-pool", select: "top" },
+              to: { player: { stateRef: "game.property.roundLoser" }, inventory: "player-hand" },
+            },
+          ],
+        },
+      ],
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reactive action inputs (effect-originator and trigger-input)
+// ---------------------------------------------------------------------------
+
+describe("ActionsModuleSchema — reactive input types", () => {
+  it("accepts effect-originator input type", () => {
+    const result = ok({
+      actions: [
+        {
+          id: "counter-attack",
+          reactive: { trigger: "deal-damage", timing: "after" },
+          inputs: [
+            { id: "attacker", type: { kind: "effect-originator" } },
+          ],
+          effects: [
+            {
+              kind: "set-state",
+              path: "player.property.hp",
+              value: { delta: -2 },
+              target: { kind: "param", inputId: "attacker" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.actions[0].inputs![0].type.kind).toBe("effect-originator");
+  });
+
+  it("accepts trigger-input input type", () => {
+    const result = ok({
+      actions: [
+        {
+          id: "thorns",
+          reactive: { trigger: "deal-damage", timing: "after" },
+          inputs: [
+            { id: "attacking-creature", type: { kind: "trigger-input", inputId: "creature" } },
+          ],
+          effects: [
+            {
+              kind: "update",
+              pieces: { inventory: "battlefield", select: { id: { param: "attacking-creature" } } },
+              property: "hp",
+              value: { delta: -2 },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.actions[0].inputs![0].type.kind).toBe("trigger-input");
+    expect((result.actions[0].inputs![0].type as any).inputId).toBe("creature");
+  });
+
+  it("rejects trigger-input missing inputId", () => {
+    fail({
+      actions: [
+        {
+          id: "bad-trigger",
+          reactive: { trigger: "deal-damage", timing: "after" },
+          inputs: [
+            { id: "x", type: { kind: "trigger-input" } },
+          ],
+          effects: [{ ref: "some-effect" }],
+        },
+      ],
+    });
+  });
+
+  it("accepts attenuate effect in reactive action", () => {
+    const result = ok({
+      actions: [
+        {
+          id: "brace",
+          reactive: { trigger: "deal-damage", timing: "before" },
+          effects: [
+            { kind: "attenuate", adjustment: { delta: 2 } },
+          ],
+        },
+      ],
+    });
+    expect(result.actions[0].effects.length).toBe(1);
+  });
+
+  it("accepts cancel-effect in reactive action", () => {
+    const result = ok({
+      actions: [
+        {
+          id: "block",
+          reactive: { trigger: "deal-damage", timing: "before" },
+          effects: [
+            { kind: "cancel-effect" },
+          ],
+        },
+      ],
+    });
+    expect(result.actions[0].effects.length).toBe(1);
+  });
+
+  it("accepts attenuate with mult in reactive action", () => {
+    const result = ok({
+      actions: [
+        {
+          id: "shield-block",
+          reactive: { trigger: "deal-damage", timing: "before" },
+          effects: [
+            { kind: "attenuate", adjustment: { mult: 0.5 } },
+          ],
+        },
+      ],
+    });
+    expect(result.actions[0].effects.length).toBe(1);
   });
 });

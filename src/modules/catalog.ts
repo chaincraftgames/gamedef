@@ -86,6 +86,32 @@
  */
 
 import { z } from "zod";
+import { ActionSchema } from "#gamedef/modules/actions.js";
+import { PassiveEffectSchema } from "#gamedef/modules/effects.js";
+
+// ---------------------------------------------------------------------------
+// Inline binding schemas (slot value = reference ID or inline definition)
+// ---------------------------------------------------------------------------
+
+/**
+ * An action slot binding value: either a named action ID (string reference)
+ * or an inline action definition (all ActionSchema fields except id).
+ */
+const InlineActionBindingSchema = ActionSchema.omit({ id: true });
+export const ActionBindingValueSchema = z.union([
+  z.string().describe("Action ID reference — forward ref to actions.actions[].id."),
+  InlineActionBindingSchema,
+]);
+
+/**
+ * A passive slot binding value: either a named passive ID (string reference)
+ * or an inline passive definition (all PassiveEffectSchema fields except id).
+ */
+const InlinePassiveBindingSchema = PassiveEffectSchema.omit({ id: true });
+export const PassiveBindingValueSchema = z.union([
+  z.string().describe("Passive ID reference — forward ref to effects.passives[].id."),
+  InlinePassiveBindingSchema,
+]);
 
 // ---------------------------------------------------------------------------
 // Initial property values
@@ -166,6 +192,26 @@ export const CatalogEntrySchema = z
       "Initial property values applied to all created copies. " +
         "Omit to leave all properties at their declared defaults.",
     ),
+    actionBindings: z
+      .record(ActionBindingValueSchema)
+      .optional()
+      .describe(
+        "Binds actions to this piece instance's action slots. " +
+          "Keys are slot IDs declared in actionSlots[] on the gamepiece type. " +
+          "Values are either a named action ID (string reference to actions.actions[].id) " +
+          "or an inline action definition for one-off card effects. " +
+          "Omit slots that should remain empty.",
+      ),
+    passiveBindings: z
+      .record(PassiveBindingValueSchema)
+      .optional()
+      .describe(
+        "Binds passives to this piece instance's passive slots. " +
+          "Keys are slot IDs declared in passiveSlots[] on the gamepiece type. " +
+          "Values are either a named passive ID (string reference to effects.passives[].id) " +
+          "or an inline passive definition for unique per-card effects. " +
+          "Omit slots that should remain empty (piece has no passive for that slot).",
+      ),
   })
   .describe(
     "Declares one or more gamepiece instances. All pieces start in game:unassigned. " +
@@ -199,5 +245,7 @@ export const CatalogModuleSchema = z
 // ---------------------------------------------------------------------------
 
 export type InitialProperties = z.infer<typeof InitialPropertiesSchema>;
+export type ActionBindingValue = z.infer<typeof ActionBindingValueSchema>;
+export type PassiveBindingValue = z.infer<typeof PassiveBindingValueSchema>;
 export type CatalogEntry = z.infer<typeof CatalogEntrySchema>;
 export type CatalogModule = z.infer<typeof CatalogModuleSchema>;

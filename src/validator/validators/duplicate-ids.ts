@@ -79,6 +79,11 @@ export class DuplicateIdsValidator implements SpecValidator {
       errors,
     );
     checkDuplicates(
+      spec.effects?.passives?.map((p) => p.id) ?? [],
+      "effects.passives",
+      errors,
+    );
+    checkDuplicates(
       spec.inventories?.types?.map((i) => i.id) ?? [],
       "inventories.types",
       errors,

@@ -25,8 +25,8 @@
  *   declares a matching input id. The engine resolves by name — no bind map needed.
  * - 'custom' kind is the escape hatch for logic that doesn't fit the primitive kinds.
  *   Avoid overusing it — the primitive kinds cover the common cases deterministically.
- * - PieceSelector is shared across move/flip/update/roll/orient.
- * - 'player-chooses' selector: the engine prompts the active player at runtime.
+ * - PieceSelector is shared across move/flip/update/roll/orient. Deterministic only:
+ *   player choice is declared as an action input (gamepiece-select), not an effect selector.
  * - draw-discard behavior is a MECHANIC that references effects — not a special kind.
  *
  * @example Effects module (card game)
@@ -96,30 +96,43 @@ import { JsonLogicSchema } from "#gamedef/modules/common.js";
  * ```yaml
  * { inventory: draw-deck, select: top }
  * { inventory: draw-deck, select: top, count: 3 }
- * { inventory: player-hand, select: player-chooses, count: 1 }
  * { inventory: combat-zone, select: all, ofType: captain }
  * { inventory: dice-tray, select: random, count: 2 }
  * { inventory: game:unassigned, select: { id: white-king } }
+ * { inventory: player-hand, select: { id: { param: chosen-card } } }
  * { player: { stateRef: game.property.roundLoser }, inventory: player-cup, select: top }
+ * { player: { param: target-player }, inventory: player-hand, select: top }
  * ```
  */
 export const GamepieceSelectorSchema = z
   .object({
     player: z
-      .object({
-        stateRef: z
-          .string()
-          .describe(
-            "Dot-path to a string state property whose value is the target player ID at runtime. " +
-              "Format: 'game.property.<id>'. The engine resolves the player instance dynamically. " +
-              "Use when the target player is determined by game state rather than fixed context " +
-              "(e.g., game.property.roundLoser, game.property.currentBidder).",
-          ),
-      })
+      .union([
+        z.object({
+          stateRef: z
+            .string()
+            .describe(
+              "Dot-path to a string state property whose value is the target player ID at runtime. " +
+                "Format: 'game.property.<id>'. The engine resolves the player instance dynamically. " +
+                "Use when the target player is determined by game state rather than fixed context " +
+                "(e.g., game.property.roundLoser, game.property.currentBidder).",
+            ),
+        }),
+        z.object({
+          param: z
+            .string()
+            .describe(
+              "Reference to an action input whose value is the target player ID. " +
+                "Use when the player was selected via a player-select input on the action.",
+            ),
+        }),
+      ])
       .optional()
       .describe(
         "Dynamic player targeting. When present, overrides the default active-player context " +
           "and selects pieces from the named player's instance of the inventory. " +
+          "Use { stateRef } for state-driven targeting (e.g., roundLoser). " +
+          "Use { param } for action-input-driven targeting (e.g., chosen opponent). " +
           "Omit to use the default context (active player for player-scoped inventories, " +
           "game context for game-scoped inventories).",
       ),
@@ -131,20 +144,26 @@ export const GamepieceSelectorSchema = z
       ),
     select: z
       .union([
-        z.enum(["top", "bottom", "random", "all", "player-chooses"]).describe(
-          "How to select pieces from the inventory. " +
+        z.enum(["top", "bottom", "random", "all"]).describe(
+          "Deterministic selection mode. " +
             "'top': take from the top of a stack or front of a line. " +
             "'bottom': take from the bottom of a stack or back of a line. " +
             "'random': engine picks randomly — use 'count' to specify how many. " +
-            "'all': every piece currently in the inventory (ignores 'count'). " +
-            "'player-chooses': engine prompts the active player — 'count' is required.",
+            "'all': every piece currently in the inventory (ignores 'count').",
         ),
         z
-          .object({ id: z.string() })
+          .object({
+            id: z.union([
+              z.string().describe("Literal catalog piece ID (e.g., 'white-king')."),
+              z.object({ param: z.string() }).describe(
+                "Piece ID from an action input. References a gamepiece-select input by id.",
+              ),
+            ]),
+          })
           .describe(
-            "Select a specific named piece by its catalog 'id'. " +
-              "Used in setup effects to place individually named pieces: " +
-              "{ inventory: game:unassigned, select: { id: white-king } }.",
+            "Select a specific piece by ID. Use a literal string for catalog-defined pieces " +
+              "(e.g., { id: white-king }). Use { id: { param: inputId } } to select the piece " +
+              "chosen by a gamepiece-select action input.",
           ),
       ])
       .describe("How to select pieces from the inventory."),
@@ -154,7 +173,7 @@ export const GamepieceSelectorSchema = z
       .min(1)
       .optional()
       .describe(
-        "How many pieces to select. Required when select is 'player-chooses'. " +
+        "How many pieces to select. " +
           "Omit when select is 'all'. For top/bottom/random defaults to 1.",
       ),
     ofType: z
@@ -167,7 +186,7 @@ export const GamepieceSelectorSchema = z
   })
   .describe(
     "Identifies which pieces an effect operates on — which inventory and how to pick from it. " +
-      "Use 'player' with 'stateRef' to dynamically target a player identified by game state.",
+      "Use 'player' with 'stateRef' for state-driven targeting or { param } for action-input targeting.",
   );
 
 // ---------------------------------------------------------------------------
@@ -183,10 +202,35 @@ export const GamepieceSelectorSchema = z
  * { inventory: market-row, at: { kind: line-index, index: 2 } }   # slot 2 in a line inventory
  * { inventory: battle-grid, at: { kind: grid-cell, row: 1, col: "e" } } # grid cell
  * { inventory: board, at: { kind: graph-node, nodeId: "C3" } }    # graph node
+ * { inventory: battle-grid, at: { param: target-cell } }          # position from action input
+ * { player: { param: target-player }, inventory: player-hand }    # opponent's inventory
  * ```
  */
 export const InventoryTargetSchema = z
   .object({
+    player: z
+      .union([
+        z.object({
+          stateRef: z
+            .string()
+            .describe(
+              "Dot-path to a string state property whose value is the target player ID.",
+            ),
+        }),
+        z.object({
+          param: z
+            .string()
+            .describe(
+              "Reference to an action input whose value is the target player ID.",
+            ),
+        }),
+      ])
+      .optional()
+      .describe(
+        "Dynamic player targeting for the destination inventory. " +
+          "When present, overrides the default active-player context. " +
+          "Use { stateRef } for state-driven targeting or { param } for action-input targeting.",
+      ),
     inventory: z
       .string()
       .describe(
@@ -194,12 +238,23 @@ export const InventoryTargetSchema = z
           "For player-scoped inventories, the engine resolves to the acting player's " +
           "instance within the context of a player action.",
       ),
-    at: InventoryPlacementSchema.optional().describe(
-      "Placement position within the inventory. " +
-        "Omit for unordered (none) inventories or when position doesn't matter. " +
-        "When from and to reference the same inventory, the engine performs a " +
-        "within-inventory reposition rather than a cross-inventory move.",
-    ),
+    at: z
+      .union([
+        InventoryPlacementSchema,
+        z.object({ param: z.string() }).describe(
+          "Placement position from an action input. References an inventory-position " +
+            "input by id. The input resolves to an InventoryPlacement descriptor.",
+        ),
+      ])
+      .optional()
+      .describe(
+        "Placement position within the inventory. " +
+          "Use a literal InventoryPlacement for fixed positions (stack-top, grid-cell, etc.). " +
+          "Use { param: inputId } for positions chosen by the player via inventory-position input. " +
+          "Omit for unordered (none) inventories or when position doesn't matter. " +
+          "When from and to reference the same inventory, the engine performs a " +
+          "within-inventory reposition rather than a cross-inventory move.",
+      ),
   })
   .describe("Destination inventory and optional placement position for a move effect.");
 
@@ -245,6 +300,45 @@ export const DistributeTargetSchema = z
   .describe("Multi-instance target for distribute effects.");
 
 // ---------------------------------------------------------------------------
+// Shared numeric operator schemas (used by PropertyValue and attenuate)
+// ---------------------------------------------------------------------------
+
+/**
+ * Numeric value or state variable reference with optional negate flag.
+ * Shared shape for both delta and mult operators.
+ */
+const NumericOrVarSchema = z.union([
+  z.number(),
+  z.object({
+    var: z.string(),
+    negate: z.boolean().optional().describe(
+      "If true, negate the resolved value before applying. " +
+        "Allows decrementing by positive-valued properties without custom effects.",
+    ),
+  }),
+]);
+
+/** Additive delta operator: increment/decrement a numeric value. */
+export const DeltaSchema = z
+  .object({ delta: NumericOrVarSchema })
+  .describe(
+    "Increment or decrement a numeric property. Delta can be a literal number or " +
+      "a { var: \"path\" } reference to a numeric state property. " +
+      "Positive delta increments, negative decrements (or use negate: true with var). " +
+      "The engine clamps to the property's min/max if defined.",
+  );
+
+/** Multiplicative operator: scale a numeric value by a factor. */
+export const MultSchema = z
+  .object({ mult: NumericOrVarSchema })
+  .describe(
+    "Multiply a numeric property by a factor. Mult can be a literal number or " +
+      "a { var: \"path\" } reference. Use 0.5 to halve, 2 to double, etc. " +
+      "The engine rounds the result to the nearest integer if the property is integer-typed. " +
+      "The engine clamps to the property's min/max if defined.",
+  );
+
+// ---------------------------------------------------------------------------
 // Property value expression (for update effects)
 // ---------------------------------------------------------------------------
 
@@ -256,8 +350,14 @@ export const DistributeTargetSchema = z
  * value: true                # set to literal boolean
  * value: { delta: -1 }       # decrement by 1
  * value: { delta: 3 }        # increment by 3
+ * value: { mult: 2 }         # double the current value
+ * value: { mult: 0.5 }       # cut in half
  * value: { toggle: true }    # flip a boolean property
  * value: { param: delta }    # resolve from named param at call site
+ * value: { var: "player.property.relicCount" }  # read from game state
+ * value: { delta: { var: "game.property.spellPower" } }  # delta from state variable
+ * value: { delta: { var: "player.property.damageDealt", negate: true } }  # subtract a value
+ * value: { mult: { var: "player.property.workerCount" } }  # scale by state variable
  * ```
  */
 export const PropertyValueSchema = z
@@ -265,12 +365,8 @@ export const PropertyValueSchema = z
     z.string().describe("Set property to a literal string value."),
     z.number().describe("Set property to a literal numeric value."),
     z.boolean().describe("Set property to a literal boolean value."),
-    z
-      .object({ delta: z.number() })
-      .describe(
-        "Increment or decrement a numeric property. Positive delta increments, negative decrements. " +
-          "The engine clamps to the property's min/max if defined.",
-      ),
+    DeltaSchema,
+    MultSchema,
     z
       .object({ toggle: z.literal(true) })
       .describe("Flip a boolean property to its opposite value."),
@@ -288,9 +384,20 @@ export const PropertyValueSchema = z
           "Useful for recording who made a bid, who attacked, or who initiated any action. " +
           "Engine resolves at execution time from the current action context.",
       ),
+    z
+      .object({ var: z.string() })
+      .describe(
+        "Set this property to the value of another state property. Use a dot-path: " +
+          "'game.property.<id>', 'player.property.<id>', 'game.inventory.<id>.count', " +
+          "'player.inventory.<id>.count'. Resolved at effect execution time.",
+      ),
   ])
   .describe(
-    "The new value to assign, or a relative change to apply to a property.",
+    "The new value to assign, or a relative change to apply to a property. " +
+    "Values can be literals, deltas, multipliers, state references, or action inputs. " +
+    "Each value performs ONE operation. For combined operations (e.g. multiply then subtract), " +
+    "use sequential effects writing to an intermediate state property, or use a custom effect " +
+    "if no intermediate property exists.",
   );
 
 // ---------------------------------------------------------------------------
@@ -311,14 +418,22 @@ export const PropertyValueSchema = z
  * @example Player discards a chosen card to the top of the discard pile
  * ```yaml
  * kind: move
- * from: { inventory: player-hand, select: player-chooses, count: 1 }
+ * from: { inventory: player-hand, select: { id: { param: card } } }
  * to: { inventory: discard-pile, at: { kind: stack-top } }
+ * # within the action that calls this effect:
+ * # inputs:
+ * #   - id: card
+ * #     type: { kind: gamepiece-select, inventory: player-hand }
  * ```
  * @example Move a piece to a specific grid cell (within-inventory reposition)
  * ```yaml
  * kind: move
- * from: { inventory: battle-grid, select: player-chooses, count: 1 }
+ * from: { inventory: battle-grid, select: { id: { param: piece } } }
  * to: { inventory: battle-grid, at: { kind: grid-cell, row: 2, col: 3 } }
+ * # within the action that calls this effect:
+ * # inputs:
+ * #   - id: piece
+ * #     type: { kind: gamepiece-select, inventory: battle-grid }
  * ```
  * @example Advance a token to slot 5 on a line inventory
  * ```yaml
@@ -382,9 +497,13 @@ export const FlipEffectSchema = z
  * @example Set a piece as exhausted
  * ```yaml
  * kind: update
- * pieces: { inventory: play-area, select: player-chooses, count: 1 }
+ * pieces: { inventory: play-area, select: { id: { param: piece } } }
  * property: isExhausted
  * value: true
+ * # within the action that calls this effect:
+ * # inputs:
+ * #   - id: piece
+ * #     type: { kind: gamepiece-select, inventory: play-area }
  * ```
  * @example Advance score peg by 2
  * ```yaml
@@ -491,7 +610,7 @@ export const DistributeEffectSchema = z
  * @example Roll a single chosen die
  * ```yaml
  * kind: roll
- * pieces: { inventory: dice-tray, select: player-chooses, count: 1 }
+ * pieces: { inventory: dice-tray, select: { id: { param: die } } }
  * ```
  */
 export const RollEffectSchema = z
@@ -610,7 +729,7 @@ export const SetRandomEffectSchema = z
  * @example Rotate a tile clockwise
  * ```yaml
  * kind: orient
- * pieces: { inventory: board, select: player-chooses, count: 1 }
+ * pieces: { inventory: board, select: { id: { param: tile } } }
  * to: rotate-cw
  * ```
  * @example Set a piece to a specific orientation
@@ -737,8 +856,12 @@ export const MessageRecipientSchema = z
  * @example Reveal one opponent's card to the acting player
  * ```yaml
  * kind: reveal
- * pieces: { inventory: opponent-hand, select: player-chooses, count: 1 }
+ * pieces: { inventory: opponent-hand, select: { id: { param: card } } }
  * to: actor
+ * # within the action that calls this effect:
+ * # inputs:
+ * #   - id: card
+ * #     type: { kind: gamepiece-select, inventory: opponent-hand }
  * ```
  */
 export const RevealEffectSchema = z
@@ -1272,10 +1395,18 @@ export const PlayerTargetSchema = z
       .describe(
         "All players satisfying a JSONLogic condition evaluated against each player's state.",
       ),
+    z
+      .object({ kind: z.literal("trigger-actor") })
+      .describe(
+        "The player who initiated the triggering effect. " +
+          "Only valid inside passive effects and reactive actions. " +
+          "Use to target counter-effects at the attacker/originator.",
+      ),
   ])
   .describe(
     "Who a player-scoped effect applies to. Defaults to 'actor' when omitted. " +
-      "Use to target other players, all players, or players matching a condition.",
+      "Use to target other players, all players, or players matching a condition. " +
+      "'trigger-actor' is available in passives and reactive contexts.",
   );
 
 // ---------------------------------------------------------------------------
@@ -1395,6 +1526,100 @@ export const CancelEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Attenuate effect (modify the triggering effect's numeric value)
+// ---------------------------------------------------------------------------
+
+/**
+ * Adjusts the numeric value of the triggering effect before it writes to state.
+ * Only valid inside a reactive action with timing: 'before'. Only meaningful when
+ * the triggering effect is a set-state or update that applies a numeric delta or
+ * literal value — for non-numeric effects, use cancel-effect instead.
+ *
+ * Adjustment uses the same delta/mult shapes as PropertyValue:
+ * - delta: additive — added to the triggering effect's resolved value. 
+ *   Can be a literal number or a { var, negate? } state reference.
+ * - mult: multiplicative — the triggering effect's resolved value is scaled by this
+ *   factor (rounded to nearest integer if property is integer-typed). Can be a literal
+ *   number or a { var, negate? } state reference.
+ *
+ * @example Reduce incoming damage by 2 (armor — literal delta)
+ * ```yaml
+ * id: brace
+ * label: Brace for Impact
+ * reactive:
+ *   trigger: deal-damage
+ *   timing: before
+ * effects:
+ *   - kind: attenuate
+ *     adjustment: { delta: 2 }       # +2 on a -5 delta → net -3 damage
+ * ```
+ * @example Reduce damage by armor rating (var delta)
+ * ```yaml
+ * id: armor-absorb
+ * label: Armor Absorb
+ * reactive:
+ *   trigger: deal-damage
+ *   timing: before
+ * effects:
+ *   - kind: attenuate
+ *     adjustment: { delta: { var: "player.property.armorRating" } }
+ * ```
+ * @example Halve incoming damage (shield — literal mult)
+ * ```yaml
+ * id: shield-block
+ * label: Shield Block
+ * reactive:
+ *   trigger: deal-damage
+ *   timing: before
+ * effects:
+ *   - kind: attenuate
+ *     adjustment: { mult: 0.5 }
+ * ```
+ * @example Scale healing by a blessing multiplier (var mult)
+ * ```yaml
+ * id: blessing
+ * label: Divine Blessing
+ * reactive:
+ *   trigger: heal
+ *   timing: before
+ * effects:
+ *   - kind: attenuate
+ *     adjustment: { mult: { var: "player.property.blessingPower" } }
+ * ```
+ * @example Amplify damage by curse stacks (var delta with negate)
+ * ```yaml
+ * id: curse-amplify
+ * label: Curse Amplification
+ * reactive:
+ *   trigger: deal-damage
+ *   timing: before
+ * effects:
+ *   - kind: attenuate
+ *     adjustment: { delta: { var: "player.property.curseStacks", negate: true } }
+ * ```
+ */
+export const AttenuateEffectSchema = z
+  .object({
+    kind: z.literal("attenuate"),
+    adjustment: z
+      .union([DeltaSchema, MultSchema])
+      .describe(
+        "How to modify the triggering effect's numeric value. " +
+          "Same shape as delta/mult in PropertyValue — literal number or { var, negate? }. " +
+          "Either additive (delta) or multiplicative (mult), not both.",
+      ),
+  })
+  .describe(
+    "Modifies the numeric value of the triggering effect before it writes to state. " +
+      "Only valid inside a reactive action with timing: 'before'. " +
+      "Applies only to set-state and update effects that resolve to a numeric change. " +
+      "Adjustment supports literal numbers and { var, negate? } state references, " +
+      "just like delta/mult in PropertyValue. " +
+      "After attenuate, the triggering effect still fires — it just writes the modified value. " +
+      "To prevent the effect entirely, use cancel-effect instead.",
+  );
+
+// ---------------------------------------------------------------------------
 // Named effect (id + kind body — the unit stored in the effects module)
 // ---------------------------------------------------------------------------
 
@@ -1421,6 +1646,7 @@ export const NamedEffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema.extend(namedEffectBase),
   CustomEffectSchema.extend(namedEffectBase),
   CancelEffectSchema.extend(namedEffectBase),
+  AttenuateEffectSchema.extend(namedEffectBase),
   MessageEffectSchema.extend(namedEffectBase),
   LlmEffectSchema.extend(namedEffectBase),
   GenerateImageEffectSchema.extend(namedEffectBase),
@@ -1429,26 +1655,6 @@ export const NamedEffectSchema = z.discriminatedUnion("kind", [
     "Always fully self-contained — all values are literal. " +
     "Referenced by id from actions, flow transitions, and mechanics.",
 );
-
-// ---------------------------------------------------------------------------
-// Effects module
-// ---------------------------------------------------------------------------
-
-export const EffectsModuleSchema = z
-  .object({
-    effects: z
-      .array(NamedEffectSchema)
-      .min(1)
-      .describe(
-        "All named effects in this game. Each effect is a reusable, named state transition. " +
-          "Actions, flow transitions, and mechanics reference effects by their id.",
-      ),
-  })
-  .describe(
-    "The effects module — a named library of all atomic game-state operations. " +
-      "No dependencies on other spec modules (all IDs are forward references). " +
-      "Referenced by actions, flow, and mechanics.",
-  );
 
 // ---------------------------------------------------------------------------
 // Effect call (used by actions, flow, mechanics)
@@ -1472,10 +1678,217 @@ export const EffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema,
   CustomEffectSchema,
   CancelEffectSchema,
+  AttenuateEffectSchema,
   MessageEffectSchema,
   LlmEffectSchema,
   GenerateImageEffectSchema,
 ]);
+
+// ---------------------------------------------------------------------------
+// Passive effect declaration (carried by gamepiece types and player roles)
+// ---------------------------------------------------------------------------
+
+/**
+ * A passive effect that fires automatically when a matching named effect executes,
+ * without requiring player choice. Enabled while the carrying gamepiece is in a
+ * qualifying inventory (specified by `enabledIn`) or the carrying role is held.
+ *
+ * Timing is inferred from the effects list:
+ * - Contains attenuate or cancel-effect → fires before the trigger resolves (intercept)
+ * - Contains only regular effects → fires after the trigger resolves (reaction)
+ *
+ * Scope determines when the passive fires relative to the piece/role owner:
+ * - owner-targeted: trigger effect targets the owner (defensive — armor, healing amp)
+ * - owner-originated: owner is the actor executing the trigger (offensive — power strike)
+ *
+ * Enablement conditions (gamepiece passives only, ignored for role passives):
+ * - enabledIn: which inventories the piece must be in for the passive to be enabled
+ * - exhaustedFilter: "any" | "ready-only" | "exhausted-only"
+ * - faceFilter: "any" | "face-up-only" | "face-down-only"
+ *
+ * @example Reduce all incoming damage by 2 while on battlefield (defensive)
+ * ```yaml
+ * passives:
+ *   - id: armor-absorb
+ *     trigger: [deal-damage, deal-fire-damage, deal-poison-damage]
+ *     enabledIn: [battlefield]
+ *     scope: owner-targeted
+ *     effects:
+ *       - kind: attenuate
+ *         adjustment: { delta: 2 }
+ * ```
+ * @example Deal 1 damage back to attacker (thorns — after)
+ * ```yaml
+ * passives:
+ *   - id: thorns
+ *     trigger: [deal-damage]
+ *     enabledIn: [battlefield]
+ *     scope: owner-targeted
+ *     effects:
+ *       - kind: set-state
+ *         path: player.property.hp
+ *         value: { delta: -1 }
+ *         target: { kind: trigger-actor }
+ * ```
+ * @example All outgoing damage increased by rage stacks (offensive)
+ * ```yaml
+ * passives:
+ *   - id: berserker-rage
+ *     trigger: [deal-damage]
+ *     enabledIn: [battlefield]
+ *     scope: owner-originated
+ *     effects:
+ *       - kind: attenuate
+ *         adjustment: { delta: { var: "player.property.rageStacks", negate: true } }
+ * ```
+ * @example Lifesteal — heal for 1 whenever owner deals damage (offensive, after)
+ * ```yaml
+ * passives:
+ *   - id: lifesteal
+ *     trigger: [deal-damage, deal-fire-damage]
+ *     enabledIn: [equipment-slot]
+ *     scope: owner-originated
+ *     effects:
+ *       - kind: set-state
+ *         path: player.property.hp
+ *         value: { delta: 1 }
+ * ```
+ * @example Trap card — enabled face-down, cancels first damage
+ * ```yaml
+ * passives:
+ *   - id: hidden-trap
+ *     trigger: [deal-damage]
+ *     enabledIn: [trap-zone]
+ *     faceFilter: face-down-only
+ *     scope: owner-targeted
+ *     effects:
+ *       - kind: cancel-effect
+ * ```
+ * @example Shield passive — disabled when exhausted
+ * ```yaml
+ * passives:
+ *   - id: shield-wall
+ *     trigger: [deal-damage]
+ *     enabledIn: [battlefield]
+ *     exhaustedFilter: ready-only
+ *     scope: owner-targeted
+ *     effects:
+ *       - kind: attenuate
+ *         adjustment: { mult: 0.5 }
+ * ```
+ * @example Passive only active while exhausted (e.g. a "tapped" ability)
+ * ```yaml
+ * passives:
+ *   - id: tapped-aura
+ *     trigger: [deal-damage]
+ *     enabledIn: [battlefield]
+ *     exhaustedFilter: exhausted-only
+ *     scope: owner-targeted
+ *     effects:
+ *       - kind: attenuate
+ *         adjustment: { delta: 3 }
+ * ```
+ */
+export const PassiveEffectSchema = z
+  .object({
+    id: z
+      .string()
+      .describe(
+        "Unique identifier for this passive within its carrier (piece type or role). " +
+          "Used for logging and debugging.",
+      ),
+    trigger: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        "Named effect IDs that activate this passive. Forward references to the effects module. " +
+          "Whenever the engine executes any of these named effects, it checks all active passives " +
+          "that reference it. Use multiple IDs when several effects represent the same category " +
+          "(e.g., [deal-damage, deal-fire-damage, deal-poison-damage] for a generic armor passive).",
+      ),
+    enabledIn: z
+      .array(z.string())
+      .min(1)
+      .optional()
+      .describe(
+        "Inventory type IDs where this passive is enabled. The passive only fires when the " +
+          "carrying piece is in one of these inventories. Forward references to the inventories module. " +
+          "Example: ['battlefield', 'equipment-slot'] — enabled when played, not when in hand. " +
+          "Required for gamepiece passives. Omit for role passives (enabled whenever role is held).",
+      ),
+    exhaustedFilter: z
+      .enum(["any", "ready-only", "exhausted-only"])
+      .default("any")
+      .describe(
+        "Which exhausted states allow this passive to fire. " +
+          "'any' (default): fires regardless of exhausted state. " +
+          "'ready-only': only fires when the piece is ready/untapped. " +
+          "'exhausted-only': only fires when the piece is exhausted/tapped.",
+      ),
+    faceFilter: z
+      .enum(["any", "face-up-only", "face-down-only"])
+      .default("face-up-only")
+      .describe(
+        "Which face states allow this passive to fire. " +
+          "'face-up-only' (default): disabled when the piece is hidden/face-down. " +
+          "'any': fires regardless of face state (e.g., a trap that works face-down). " +
+          "'face-down-only': only fires when the piece is face-down.",
+      ),
+    scope: z
+      .enum(["owner-targeted", "owner-originated"])
+      .describe(
+        "When the passive fires relative to its owner. " +
+          "'owner-targeted': fires when the trigger effect targets the owner " +
+          "(defensive — damage reduction, healing amplification). " +
+          "'owner-originated': fires when the owner is the actor executing the trigger " +
+          "(offensive — damage boost, lifesteal).",
+      ),
+    effects: z
+      .array(EffectSchema)
+      .min(1)
+      .describe(
+        "Effects to execute when this passive fires. " +
+          "If the list contains attenuate or cancel-effect, the passive intercepts before " +
+          "the trigger resolves. Otherwise, effects fire after the trigger resolves. " +
+          "Within passive effects, 'target: { kind: trigger-actor }' references the player " +
+          "who initiated the triggering effect.",
+      ),
+  })
+  .describe(
+    "A passive effect declaration. Enabled while the carrying gamepiece is in a qualifying " +
+      "inventory (per enabledIn) or the carrying role is held. Fires automatically (no player " +
+      "choice) whenever any of the named trigger effects execute and the scope condition is met. " +
+      "Timing is inferred: attenuate/cancel-effect → before; regular effects → after. " +
+      "For effects that require player choice in response to a trigger, use reactive actions instead.",
+  );
+
+// ---------------------------------------------------------------------------
+// Effects module
+// ---------------------------------------------------------------------------
+
+export const EffectsModuleSchema = z
+  .object({
+    effects: z
+      .array(NamedEffectSchema)
+      .min(1)
+      .describe(
+        "All named effects in this game. Each effect is a reusable, named state transition. " +
+          "Actions, flow transitions, and mechanics reference effects by their id.",
+      ),
+    passives: z
+      .array(PassiveEffectSchema)
+      .optional()
+      .describe(
+        "Named passive effect declarations available to be bound to gamepiece passive slots " +
+          "or role passives. Each passive has a unique id referenced by catalog passiveBindings " +
+          "or role passives[]. Omit if the game has no passive effects.",
+      ),
+  })
+  .describe(
+    "The effects module — a named library of all atomic game-state operations and passive " +
+      "effect declarations. No dependencies on other spec modules (all IDs are forward references). " +
+      "Referenced by actions, flow, mechanics, and the catalog.",
+  );
 
 /**
  * A reference to a named effect by ID.
@@ -1555,6 +1968,8 @@ export type SetRandomEffect = z.infer<typeof SetRandomEffectSchema>;
 export type OrientEffect = z.infer<typeof OrientEffectSchema>;
 export type CustomEffect = z.infer<typeof CustomEffectSchema>;
 export type CancelEffect = z.infer<typeof CancelEffectSchema>;
+export type AttenuateEffect = z.infer<typeof AttenuateEffectSchema>;
+export type PassiveEffect = z.infer<typeof PassiveEffectSchema>;
 export type MessageRecipient = z.infer<typeof MessageRecipientSchema>;
 export type MessageEffect = z.infer<typeof MessageEffectSchema>;
 export type LlmOutput = z.infer<typeof LlmOutputSchema>;
