@@ -157,3 +157,73 @@ export const JsonLogicSchema: z.ZodType<JsonLogicValue> = z.lazy(() =>
     "'game.inventory.<id>.count'. " +
     "Standard JSONLogic operators: '>', '>=', '<', '<=', '==', '!=', 'and', 'or', 'not', '!'.",
 );
+
+// ---------------------------------------------------------------------------
+// Property value types
+// ---------------------------------------------------------------------------
+
+/**
+ * The set of value types available for properties (gamepiece, game state, player state).
+ *
+ * @example
+ * ```yaml
+ * { kind: integer, min: 0, max: 10 }   # bounded integer
+ * { kind: float }                       # unbounded float
+ * { kind: enum, values: [red, green] }  # enumeration
+ * { kind: boolean }                     # true/false flag
+ * { kind: string }                      # free text
+ * { kind: player-id }                  # ref: a player in the game
+ * { kind: player-role-id }             # ref: a role defined in the players module
+ * { kind: gamepiece-id }               # ref: a gamepiece instance
+ * ```
+ * player-id / player-role-id / gamepiece-id are entity references — stored as string IDs
+ * at runtime and validated by the engine on every set-state write.
+ */
+export const PropertyTypeSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("integer"),
+    min: z.number().int().optional().describe("Inclusive minimum value, if constrained"),
+    max: z.number().int().optional().describe("Inclusive maximum value, if constrained"),
+  }),
+  z.object({
+    kind: z.literal("float"),
+    min: z.number().optional().describe("Inclusive minimum value, if constrained"),
+    max: z.number().optional().describe("Inclusive maximum value, if constrained"),
+  }),
+  z.object({
+    kind: z.literal("string"),
+  }),
+  z.object({
+    kind: z.literal("boolean"),
+  }),
+  z.object({
+    kind: z.literal("enum"),
+    values: z
+      .array(z.string())
+      .min(2)
+      .describe("The exhaustive set of allowed string values"),
+  }),
+  z.object({
+    kind: z.literal("player-id"),
+  }).describe(
+    "A reference to a player. Stored as a string player ID. " +
+      "The engine validates that the written value is a known player at runtime.",
+  ),
+  z.object({
+    kind: z.literal("player-role-id"),
+  }).describe(
+    "A reference to a player role defined in the players module. " +
+      "The engine validates that the written value is a known role when roles are configured.",
+  ),
+  z.object({
+    kind: z.literal("gamepiece-id"),
+  }).describe(
+    "A reference to a gamepiece instance. Stored as a string piece ID. " +
+      "The engine validates that the written value is a known gamepiece at runtime.",
+  ),
+]).describe(
+  "The type of a property. Determines what values are valid and what operations the " +
+    "effect vocabulary can apply.",
+);
+
+export type PropertyType = z.infer<typeof PropertyTypeSchema>;

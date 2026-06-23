@@ -307,6 +307,51 @@ describe("GamepieceTypesModuleSchema — rejections", () => {
     ).toThrow();
   });
 
+  it("accepts a player-id property type", () => {
+    const r = GamepieceTypesModuleSchema.safeParse({
+      types: [
+        {
+          id: "card",
+          category: "card",
+          properties: [
+            { id: "assignedPlayer", type: { kind: "player-id" }, mutable: true, visibility: "never" },
+          ],
+        },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a player-role-id property type", () => {
+    const r = GamepieceTypesModuleSchema.safeParse({
+      types: [
+        {
+          id: "token",
+          category: "token",
+          properties: [
+            { id: "role", type: { kind: "player-role-id" }, mutable: true, visibility: "always" },
+          ],
+        },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a gamepiece-id property type", () => {
+    const r = GamepieceTypesModuleSchema.safeParse({
+      types: [
+        {
+          id: "card",
+          category: "card",
+          properties: [
+            { id: "capturedPiece", type: { kind: "gamepiece-id" }, mutable: true, visibility: "never" },
+          ],
+        },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
   it("rejects faceCount less than 2", () => {
     expect(() =>
       GamepieceTypesModuleSchema.parse({

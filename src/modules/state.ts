@@ -45,7 +45,7 @@
  */
 
 import { z } from "zod";
-import { PropertyTypeSchema } from "./gamepiece-types.js";
+import { PropertyTypeSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // State property default value

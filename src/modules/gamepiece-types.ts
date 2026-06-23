@@ -63,7 +63,7 @@
  */
 
 import { z } from "zod";
-import { JsonLogicSchema } from "./common.js";
+import { JsonLogicSchema, PropertyTypeSchema } from "#gamedef/modules/common.js";
 import { PieceMechanicSchema } from "#gamedef/mechanics/index.js";
 
 
@@ -71,47 +71,8 @@ import { PieceMechanicSchema } from "#gamedef/mechanics/index.js";
 // Property value types
 // ---------------------------------------------------------------------------
 
-/**
- * The set of value types available for gamepiece properties.
- *
- * @example
- * ```yaml
- * { kind: integer, min: 0, max: 10 }         # bounded integer
- * { kind: float }                             # unbounded float
- * { kind: enum, values: [red, green, blue] }  # enumeration
- * { kind: boolean }                           # true/false flag
- * { kind: string }                            # free text
- * ```
- * These are the primitives the spec and engine understand natively.
- */
-export const PropertyTypeSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("integer"),
-    min: z.number().int().optional().describe("Inclusive minimum value, if constrained"),
-    max: z.number().int().optional().describe("Inclusive maximum value, if constrained"),
-  }),
-  z.object({
-    kind: z.literal("float"),
-    min: z.number().optional().describe("Inclusive minimum value, if constrained"),
-    max: z.number().optional().describe("Inclusive maximum value, if constrained"),
-  }),
-  z.object({
-    kind: z.literal("string"),
-  }),
-  z.object({
-    kind: z.literal("boolean"),
-  }),
-  z.object({
-    kind: z.literal("enum"),
-    values: z
-      .array(z.string())
-      .min(2)
-      .describe("The exhaustive set of allowed string values"),
-  }),
-]).describe(
-  "The type of a gamepiece property. Determines what values are valid in the catalog " +
-    "and what operations the effect vocabulary can apply.",
-);
+// Property value types are defined in common.ts and re-exported here for backward compatibility.
+export { PropertyTypeSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // Property visibility
@@ -495,15 +456,8 @@ export const GamepieceTypesModuleSchema = z
       "inventories, actions, effects, and mechanics all reference.",
   );
 
-export type PropertyType = z.infer<typeof PropertyTypeSchema>;
 export type PropertyVisibility = z.infer<typeof PropertyVisibilitySchema>;
 export type GamepieceProperty = z.infer<typeof GamepiecePropertySchema>;
-/** @deprecated use PropertyType */
-export type FieldType = PropertyType;
-/** @deprecated use PropertyVisibility */
-export type FieldVisibility = PropertyVisibility;
-/** @deprecated use GamepieceProperty */
-export type GamepieceField = GamepieceProperty;
 export type InventorySlot = z.infer<typeof InventorySlotSchema>;
 export type PassiveSlot = z.infer<typeof PassiveSlotSchema>;
 export type ActionSlot = z.infer<typeof ActionSlotSchema>;

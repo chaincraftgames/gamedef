@@ -265,26 +265,16 @@ export const InventoryTargetSchema = z
 /**
  * @example
  * ```yaml
- * { scope: all-players, inventory: player-hand }              # every player's hand
- * { scope: all-teams, inventory: team-supply }                # every team's supply
- * { scope: active-player, inventory: player-hand }            # just the acting player's hand
- * { scope: all-players, inventory: player-hand, roles: [mafia] } # only players with mafia role
+ * { inventory: player-hand }                          # every player's hand
+ * { inventory: player-hand, roles: [mafia] }          # only players holding the mafia role
  * ```
  */
 export const DistributeTargetSchema = z
   .object({
-    scope: z
-      .enum(["all-players", "all-teams", "active-player"])
-      .describe(
-        "Which instances of the target inventory to deal into. " +
-          "'all-players': one deal unit per player. " +
-          "'all-teams': one deal unit per team. " +
-          "'active-player': only the currently acting player's instance.",
-      ),
     inventory: z
       .string()
       .describe(
-        "Target inventory type ID (player- or team-scoped). " +
+        "Target inventory type ID (player-scoped). " +
           "Forward reference to the inventories module.",
       ),
     roles: z
@@ -292,12 +282,12 @@ export const DistributeTargetSchema = z
       .min(1)
       .optional()
       .describe(
-        "If provided, restrict distribution to players (or teams) holding at least one of these role IDs. " +
+        "If provided, restrict distribution to players holding at least one of these role IDs. " +
           "Forward references to role IDs defined in the players module. " +
           "Use in setup to deal role-specific items: e.g., deal a kill card only to the mafia player.",
       ),
   })
-  .describe("Multi-instance target for distribute effects.");
+  .describe("Target for distribute effects. Always deals to all players, optionally filtered by role.");
 
 // ---------------------------------------------------------------------------
 // Shared numeric operator schemas (used by PropertyValue and attenuate)
@@ -559,17 +549,16 @@ export const ShuffleEffectSchema = z
  * ```yaml
  * kind: distribute
  * from: { inventory: draw-deck, select: top }
- * to: { scope: all-players, inventory: player-hand }
+ * to: { inventory: player-hand }
  * count: 6
  * style: round-robin
  * ```
- * @example Give each team 3 resources at once
+ * @example Deal 1 kill card to each mafia player
  * ```yaml
  * kind: distribute
- * from: { inventory: resource-supply, select: random }
- * to: { scope: all-teams, inventory: team-supply }
- * count: 3
- * style: batch
+ * from: { inventory: role-cards, select: top }
+ * to: { inventory: player-hand, roles: [mafia] }
+ * count: 1
  * ```
  */
 export const DistributeEffectSchema = z
