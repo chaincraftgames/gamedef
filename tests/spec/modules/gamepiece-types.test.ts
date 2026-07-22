@@ -43,7 +43,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
           {
             id: "power",
             label: "Power",
-            type: { kind: "integer", min: 1, max: 10 },
+            type: { kind: "number", min: 1, max: 10 },
             mutable: false,
             visibility: "revealed",
             description: "Base power value of this card",
@@ -51,7 +51,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
           {
             id: "goldCost",
             label: "Gold Cost",
-            type: { kind: "integer", min: 0 },
+            type: { kind: "number", min: 0 },
             mutable: false,
             visibility: "always",
             description: "Cost in gold to play this card",
@@ -97,7 +97,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
           {
             id: "hitPoints",
             label: "Hit Points",
-            type: { kind: "integer", min: 0, max: 20 },
+            type: { kind: "number", min: 0, max: 20 },
             mutable: true,
             default: 20,
             visibility: "always",
@@ -113,7 +113,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
           {
             id: "combatBonus",
             label: "Combat Bonus",
-            type: { kind: "float", min: 0.0, max: 2.0 },
+            type: { kind: "number", min: 0.0, max: 2.0, integer: false },
             mutable: false,
             visibility: "always",
             description: "Multiplier applied to card power during this captain's attacks",
@@ -127,7 +127,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
           },
           {
             id: "stunCountdown",
-            type: { kind: "integer", min: 0, max: 3 },
+            type: { kind: "number", min: 0, max: 3 },
             mutable: true,
             default: 0,
             visibility: "never",

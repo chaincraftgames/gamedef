@@ -312,8 +312,7 @@ describe("CatalogModuleSchema — passiveBindings", () => {
         properties: { name: "Vampiric Blade" },
         passiveBindings: {
           "worn-passive": {
-            trigger: ["deal-damage"],
-            scope: "owner-originated",
+            trigger: { kind: "state-write", scope: "actor", path: "player.property.hp", direction: "decrease" },
             effects: [
               { kind: "set-state", path: "player.property.hp", value: { delta: 1 } },
             ],
@@ -322,7 +321,7 @@ describe("CatalogModuleSchema — passiveBindings", () => {
       }],
     });
     const binding = result.entries[0].passiveBindings!["worn-passive"] as any;
-    expect(binding.scope).toBe("owner-originated");
+    expect(binding.trigger.scope).toBe("actor");
   });
 
   it("accepts an inline passive binding (cancel-effect)", () => {
@@ -331,8 +330,7 @@ describe("CatalogModuleSchema — passiveBindings", () => {
         typeId: "equipment",
         passiveBindings: {
           "worn-passive": {
-            trigger: ["deal-damage"],
-            scope: "owner-targeted",
+            trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           },
         },

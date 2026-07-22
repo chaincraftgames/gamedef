@@ -759,82 +759,82 @@ describe("PropertyValueSchema — var references", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Attenuate effect
+// Adjust effect
 // ---------------------------------------------------------------------------
 
-describe("EffectsModuleSchema — attenuate effect", () => {
-  it("parses attenuate with delta adjustment as named effect", () => {
+describe("EffectsModuleSchema — adjust effect", () => {
+  it("parses adjust with delta adjustment as named effect", () => {
     const result = ok({
-      effects: [{ id: "reduce-damage", kind: "attenuate", adjustment: { delta: 2 } }],
+      effects: [{ id: "reduce-damage", kind: "adjust", adjustment: { delta: 2 } }],
     });
-    expect(result.effects[0].kind).toBe("attenuate");
+    expect(result.effects[0].kind).toBe("adjust");
   });
 
-  it("parses attenuate with mult adjustment as named effect", () => {
+  it("parses adjust with mult adjustment as named effect", () => {
     const result = ok({
-      effects: [{ id: "halve-damage", kind: "attenuate", adjustment: { mult: 0.5 } }],
+      effects: [{ id: "halve-damage", kind: "adjust", adjustment: { mult: 0.5 } }],
     });
-    expect(result.effects[0].kind).toBe("attenuate");
+    expect(result.effects[0].kind).toBe("adjust");
   });
 
-  it("parses attenuate as inline effect (EffectSchema)", () => {
+  it("parses adjust as inline effect (EffectSchema)", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { delta: -1 },
     });
     expect(r.success).toBe(true);
   });
 
-  it("rejects attenuate missing adjustment", () => {
+  it("rejects adjust missing adjustment", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
     });
     expect(r.success).toBe(false);
   });
 
-  it("rejects attenuate with non-numeric delta", () => {
+  it("rejects adjust with non-numeric delta", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { delta: "two" },
     });
     expect(r.success).toBe(false);
   });
 
-  it("rejects attenuate with non-numeric mult", () => {
+  it("rejects adjust with non-numeric mult", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { mult: "half" },
     });
     expect(r.success).toBe(false);
   });
 
-  it("accepts attenuate delta with var reference", () => {
+  it("accepts adjust delta with var reference", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { delta: { var: "player.property.armorRating" } },
     });
     expect(r.success).toBe(true);
   });
 
-  it("accepts attenuate delta with var and negate", () => {
+  it("accepts adjust delta with var and negate", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { delta: { var: "player.property.curseStacks", negate: true } },
     });
     expect(r.success).toBe(true);
   });
 
-  it("accepts attenuate mult with var reference", () => {
+  it("accepts adjust mult with var reference", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { mult: { var: "player.property.damageMultiplier" } },
     });
     expect(r.success).toBe(true);
   });
 
-  it("accepts attenuate mult with var and negate", () => {
+  it("accepts adjust mult with var and negate", () => {
     const r = EffectSchema.safeParse({
-      kind: "attenuate",
+      kind: "adjust",
       adjustment: { mult: { var: "game.property.debuffFactor", negate: true } },
     });
     expect(r.success).toBe(true);

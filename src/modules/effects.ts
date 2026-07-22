@@ -290,7 +290,7 @@ export const DistributeTargetSchema = z
   .describe("Target for distribute effects. Always deals to all players, optionally filtered by role.");
 
 // ---------------------------------------------------------------------------
-// Shared numeric operator schemas (used by PropertyValue and attenuate)
+// Shared numeric operator schemas (used by PropertyValue and adjust)
 // ---------------------------------------------------------------------------
 
 /**
@@ -1515,7 +1515,7 @@ export const CancelEffectSchema = z
   );
 
 // ---------------------------------------------------------------------------
-// Attenuate effect (modify the triggering effect's numeric value)
+// Adjust effect (modify the triggering effect's numeric value)
 // ---------------------------------------------------------------------------
 
 /**
@@ -1539,7 +1539,7 @@ export const CancelEffectSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { delta: 2 }       # +2 on a -5 delta → net -3 damage
  * ```
  * @example Reduce damage by armor rating (var delta)
@@ -1550,7 +1550,7 @@ export const CancelEffectSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { delta: { var: "player.property.armorRating" } }
  * ```
  * @example Halve incoming damage (shield — literal mult)
@@ -1561,7 +1561,7 @@ export const CancelEffectSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { mult: 0.5 }
  * ```
  * @example Scale healing by a blessing multiplier (var mult)
@@ -1572,7 +1572,7 @@ export const CancelEffectSchema = z
  *   trigger: heal
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { mult: { var: "player.property.blessingPower" } }
  * ```
  * @example Amplify damage by curse stacks (var delta with negate)
@@ -1583,13 +1583,13 @@ export const CancelEffectSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { delta: { var: "player.property.curseStacks", negate: true } }
  * ```
  */
-export const AttenuateEffectSchema = z
+export const AdjustEffectSchema = z
   .object({
-    kind: z.literal("attenuate"),
+    kind: z.literal("adjust"),
     adjustment: z
       .union([DeltaSchema, MultSchema])
       .describe(
@@ -1604,7 +1604,7 @@ export const AttenuateEffectSchema = z
       "Applies only to set-state and update effects that resolve to a numeric change. " +
       "Adjustment supports literal numbers and { var, negate? } state references, " +
       "just like delta/mult in PropertyValue. " +
-      "After attenuate, the triggering effect still fires — it just writes the modified value. " +
+      "After adjust, the triggering effect still fires — it just writes the modified value. " +
       "To prevent the effect entirely, use cancel-effect instead.",
   );
 
@@ -1635,7 +1635,7 @@ export const NamedEffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema.extend(namedEffectBase),
   CustomEffectSchema.extend(namedEffectBase),
   CancelEffectSchema.extend(namedEffectBase),
-  AttenuateEffectSchema.extend(namedEffectBase),
+  AdjustEffectSchema.extend(namedEffectBase),
   MessageEffectSchema.extend(namedEffectBase),
   LlmEffectSchema.extend(namedEffectBase),
   GenerateImageEffectSchema.extend(namedEffectBase),
@@ -1667,52 +1667,150 @@ export const EffectSchema = z.discriminatedUnion("kind", [
   OrientEffectSchema,
   CustomEffectSchema,
   CancelEffectSchema,
-  AttenuateEffectSchema,
+  AdjustEffectSchema,
   MessageEffectSchema,
   LlmEffectSchema,
   GenerateImageEffectSchema,
 ]);
 
 // ---------------------------------------------------------------------------
+// Passive / Reactive trigger schemas
+// ---------------------------------------------------------------------------
+
+const StateWriteTriggerSchema = z.object({
+  kind: z.literal("state-write"),
+  scope: z
+    .enum(["target", "actor"])
+    .describe(
+      "'target': the owner's property is being written (defensive). " +
+        "'actor': the owner is performing the write (offensive).",
+    ),
+  path: z
+    .string()
+    .describe(
+      "State path being written. E.g. 'player.property.hp', 'gamepiece.property.charges'. " +
+        "Forward reference to properties declared on a gamepiece or player type.",
+    ),
+  direction: z
+    .enum(["increase", "decrease", "any"])
+    .default("any")
+    .describe(
+      "'increase': only fires when value goes up. " +
+        "'decrease': only fires when value goes down. " +
+        "'any' (default): fires on any write regardless of direction.",
+    ),
+});
+
+const MoveTriggerSchema = z.object({
+  kind: z.literal("move"),
+  scope: z
+    .enum(["target", "actor"])
+    .describe(
+      "'target': a piece owned by the holder is moved by someone else. " +
+        "'actor': the holder initiates the move.",
+    ),
+  fromInventory: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Restrict to moves from these inventory type IDs. Omit to match any source. " +
+        "Forward references to the inventories module.",
+    ),
+  toInventory: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Restrict to moves targeting these inventory type IDs. Omit to match any destination. " +
+        "Forward references to the inventories module.",
+    ),
+});
+
+const RevealTriggerSchema = z.object({
+  kind: z.literal("reveal"),
+  scope: z
+    .enum(["target", "actor"])
+    .describe(
+      "'target': a piece held by the holder is revealed to others. " +
+        "'actor': the holder reveals a piece.",
+    ),
+  inventory: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Restrict to pieces in these inventory type IDs at time of reveal. " +
+        "Forward references to the inventories module. Omit to match any inventory.",
+    ),
+});
+
+const SkipTurnTriggerSchema = z.object({
+  kind: z.literal("skip-turn"),
+  // Scope is always 'target' — the holder's turn is being skipped by an external effect.
+});
+
+/**
+ * Discriminated union of all structural passive/reactive triggers.
+ * Identifies what event activates a passive or reactive without naming specific effect IDs.
+ */
+export const PassiveTriggerSchema = z
+  .discriminatedUnion("kind", [
+    StateWriteTriggerSchema,
+    MoveTriggerSchema,
+    RevealTriggerSchema,
+    SkipTurnTriggerSchema,
+  ])
+  .describe(
+    "Structural trigger for a passive or reactive. Identifies the interaction kind " +
+      "(state-write, move, reveal, skip-turn) and scope (target/actor). " +
+      "Replaces effect-ID fan-out: instead of listing every damage effect ID, " +
+      "declare: { kind: 'state-write', path: 'player.property.hp', direction: 'decrease' }.",
+  );
+
+// ---------------------------------------------------------------------------
 // Passive effect declaration (carried by gamepiece types and player roles)
 // ---------------------------------------------------------------------------
 
 /**
- * A passive effect that fires automatically when a matching named effect executes,
+ * A passive effect that fires automatically when the structural trigger matches,
  * without requiring player choice. Enabled while the carrying gamepiece is in a
  * qualifying inventory (specified by `enabledIn`) or the carrying role is held.
  *
  * Timing is inferred from the effects list:
- * - Contains attenuate or cancel-effect → fires before the trigger resolves (intercept)
+ * - Contains adjust or cancel-effect → fires before the trigger resolves (intercept)
  * - Contains only regular effects → fires after the trigger resolves (reaction)
  *
- * Scope determines when the passive fires relative to the piece/role owner:
- * - owner-targeted: trigger effect targets the owner (defensive — armor, healing amp)
- * - owner-originated: owner is the actor executing the trigger (offensive — power strike)
+ * Trigger scope:
+ * - target: fires when the owner is receiving the effect (defensive — armor, healing amp)
+ * - actor:  fires when the owner is causing the effect (offensive — power strike, lifesteal)
  *
  * Enablement conditions (gamepiece passives only, ignored for role passives):
- * - enabledIn: which inventories the piece must be in for the passive to be enabled
+ * - enabledIn: which inventories the piece must be in for the passive to be active
  * - exhaustedFilter: "any" | "ready-only" | "exhausted-only"
  * - faceFilter: "any" | "face-up-only" | "face-down-only"
  *
- * @example Reduce all incoming damage by 2 while on battlefield (defensive)
+ * @example Reduce all incoming HP damage by 2 while on battlefield (defensive)
  * ```yaml
  * passives:
  *   - id: armor-absorb
- *     trigger: [deal-damage, deal-fire-damage, deal-poison-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [battlefield]
- *     scope: owner-targeted
  *     effects:
- *       - kind: attenuate
+ *       - kind: adjust
  *         adjustment: { delta: 2 }
  * ```
  * @example Deal 1 damage back to attacker (thorns — after)
  * ```yaml
  * passives:
  *   - id: thorns
- *     trigger: [deal-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [battlefield]
- *     scope: owner-targeted
  *     effects:
  *       - kind: set-state
  *         path: player.property.hp
@@ -1723,33 +1821,54 @@ export const EffectSchema = z.discriminatedUnion("kind", [
  * ```yaml
  * passives:
  *   - id: berserker-rage
- *     trigger: [deal-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: actor
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [battlefield]
- *     scope: owner-originated
  *     effects:
- *       - kind: attenuate
+ *       - kind: adjust
  *         adjustment: { delta: { var: "player.property.rageStacks", negate: true } }
  * ```
- * @example Lifesteal — heal for 1 whenever owner deals damage (offensive, after)
+ * @example Lifesteal — heal for 1 whenever owner reduces opponent HP (offensive, after)
  * ```yaml
  * passives:
  *   - id: lifesteal
- *     trigger: [deal-damage, deal-fire-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: actor
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [equipment-slot]
- *     scope: owner-originated
  *     effects:
  *       - kind: set-state
  *         path: player.property.hp
  *         value: { delta: 1 }
  * ```
- * @example Trap card — enabled face-down, cancels first damage
+ * @example Passive fires when owner's piece is stolen (defensive move trigger)
+ * ```yaml
+ * passives:
+ *   - id: unstealable
+ *     trigger:
+ *       kind: move
+ *       scope: target
+ *       fromInventory: [hand]
+ *     enabledIn: [hand]
+ *     effects:
+ *       - kind: cancel-effect
+ * ```
+ * @example Trap card — enabled face-down, cancels first incoming damage
  * ```yaml
  * passives:
  *   - id: hidden-trap
- *     trigger: [deal-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [trap-zone]
  *     faceFilter: face-down-only
- *     scope: owner-targeted
  *     effects:
  *       - kind: cancel-effect
  * ```
@@ -1757,24 +1876,30 @@ export const EffectSchema = z.discriminatedUnion("kind", [
  * ```yaml
  * passives:
  *   - id: shield-wall
- *     trigger: [deal-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [battlefield]
  *     exhaustedFilter: ready-only
- *     scope: owner-targeted
  *     effects:
- *       - kind: attenuate
+ *       - kind: adjust
  *         adjustment: { mult: 0.5 }
  * ```
- * @example Passive only active while exhausted (e.g. a "tapped" ability)
+ * @example Passive only active while exhausted (e.g. a "tapped" aura)
  * ```yaml
  * passives:
  *   - id: tapped-aura
- *     trigger: [deal-damage]
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
  *     enabledIn: [battlefield]
  *     exhaustedFilter: exhausted-only
- *     scope: owner-targeted
  *     effects:
- *       - kind: attenuate
+ *       - kind: adjust
  *         adjustment: { delta: 3 }
  * ```
  */
@@ -1786,15 +1911,12 @@ export const PassiveEffectSchema = z
         "Unique identifier for this passive within its carrier (piece type or role). " +
           "Used for logging and debugging.",
       ),
-    trigger: z
-      .array(z.string())
-      .min(1)
-      .describe(
-        "Named effect IDs that activate this passive. Forward references to the effects module. " +
-          "Whenever the engine executes any of these named effects, it checks all active passives " +
-          "that reference it. Use multiple IDs when several effects represent the same category " +
-          "(e.g., [deal-damage, deal-fire-damage, deal-poison-damage] for a generic armor passive).",
-      ),
+    trigger: PassiveTriggerSchema.describe(
+      "Structural trigger — what event activates this passive. Identifies the interaction " +
+        "kind (state-write, move, reveal, skip-turn) and scope (target/actor). " +
+        "Replaces effect-ID fan-out: instead of listing every damage effect ID, " +
+        "declare: { kind: 'state-write', path: 'player.property.hp', direction: 'decrease' }.",
+    ),
     enabledIn: z
       .array(z.string())
       .min(1)
@@ -1823,21 +1945,12 @@ export const PassiveEffectSchema = z
           "'any': fires regardless of face state (e.g., a trap that works face-down). " +
           "'face-down-only': only fires when the piece is face-down.",
       ),
-    scope: z
-      .enum(["owner-targeted", "owner-originated"])
-      .describe(
-        "When the passive fires relative to its owner. " +
-          "'owner-targeted': fires when the trigger effect targets the owner " +
-          "(defensive — damage reduction, healing amplification). " +
-          "'owner-originated': fires when the owner is the actor executing the trigger " +
-          "(offensive — damage boost, lifesteal).",
-      ),
     effects: z
       .array(EffectSchema)
       .min(1)
       .describe(
         "Effects to execute when this passive fires. " +
-          "If the list contains attenuate or cancel-effect, the passive intercepts before " +
+          "If the list contains adjust or cancel-effect, the passive intercepts before " +
           "the trigger resolves. Otherwise, effects fire after the trigger resolves. " +
           "Within passive effects, 'target: { kind: trigger-actor }' references the player " +
           "who initiated the triggering effect.",
@@ -1846,9 +1959,145 @@ export const PassiveEffectSchema = z
   .describe(
     "A passive effect declaration. Enabled while the carrying gamepiece is in a qualifying " +
       "inventory (per enabledIn) or the carrying role is held. Fires automatically (no player " +
-      "choice) whenever any of the named trigger effects execute and the scope condition is met. " +
-      "Timing is inferred: attenuate/cancel-effect → before; regular effects → after. " +
-      "For effects that require player choice in response to a trigger, use reactive actions instead.",
+      "choice) whenever the structural trigger matches and its enablement conditions are met. " +
+      "Timing is inferred: adjust/cancel-effect → before; regular effects → after. " +
+      "For player-choice responses to triggers, use reactive slots instead.",
+  );
+
+// ---------------------------------------------------------------------------
+// Reactive effect declaration (player-choice response to a structural trigger)
+// ---------------------------------------------------------------------------
+
+/**
+ * A reactive effect declaration — player-choice response to a structural trigger.
+ * Unlike passives (which fire automatically), reactives highlight eligible pieces
+ * and wait for player input before applying the effect.
+ *
+ * When the trigger fires, the engine offers the player the choice to activate.
+ * If chosen: `effect` fires first (intercepting the trigger), then `onUse` executes.
+ * The player may also decline — the trigger resolves normally.
+ *
+ * Enablement works identically to passives (enabledIn, exhaustedFilter, faceFilter).
+ *
+ * @example Block incoming damage (cancel, discard the shield card)
+ * ```yaml
+ * reactives:
+ *   - id: block-damage
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
+ *     label: "Block incoming damage"
+ *     effect:
+ *       kind: cancel-effect
+ *     onUse:
+ *       - kind: move
+ *         from: { inventory: hand, select: this }
+ *         to: { inventory: discard }
+ *     enabledIn: [hand]
+ * ```
+ * @example Counter a steal (cancel the move, exhaust the piece)
+ * ```yaml
+ * reactives:
+ *   - id: refuse-steal
+ *     trigger:
+ *       kind: move
+ *       scope: target
+ *       fromInventory: [hand]
+ *     label: "Refuse the steal"
+ *     effect:
+ *       kind: cancel-effect
+ *     onUse:
+ *       - kind: orient
+ *         pieces: { select: this }
+ *         to: rotate-cw
+ *     enabledIn: [hand]
+ * ```
+ * @example Reduce incoming damage instead of cancelling (partial block)
+ * ```yaml
+ * reactives:
+ *   - id: partial-block
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: player.property.hp
+ *       direction: decrease
+ *     label: "Reduce damage by 2"
+ *     effect:
+ *       kind: adjust
+ *       adjustment: { delta: 2 }
+ *     onUse:
+ *       - kind: move
+ *         from: { inventory: hand, select: this }
+ *         to: { inventory: discard }
+ *     enabledIn: [hand]
+ *     exhaustedFilter: ready-only
+ * ```
+ */
+export const ReactiveEffectSchema = z
+  .object({
+    id: z
+      .string()
+      .describe(
+        "Unique identifier for this reactive. Referenced by catalog reactiveBindings " +
+          "or inline reactive slot declarations on gamepiece types.",
+      ),
+    trigger: PassiveTriggerSchema.describe(
+      "Structural trigger — what event opens the player response window. " +
+        "Uses the same trigger shapes as passives.",
+    ),
+    label: z
+      .string()
+      .describe(
+        "Call-to-action shown in the UX when this piece is highlighted as an eligible reactive. " +
+          "Examples: 'Block incoming damage', 'Refuse the steal', 'Redirect the attack'.",
+      ),
+    effect: EffectSchema.describe(
+      "The effect applied when the player chooses to activate this reactive. " +
+        "Typically cancel-effect (to negate the trigger) or adjust (to modify it). " +
+        "Fires before onUse.",
+    ),
+    onUse: z
+      .array(EffectSchema)
+      .optional()
+      .describe(
+        "Effects executed after the reactive fires — used to pay the activation cost " +
+          "(discard, exhaust, decrement charges, etc.). Omit for cost-free reactives.",
+      ),
+    enabledIn: z
+      .array(z.string())
+      .min(1)
+      .optional()
+      .describe(
+        "Inventory type IDs where this reactive is eligible. The player is only offered " +
+          "this reactive when the carrying piece is in one of these inventories. " +
+          "Forward references to the inventories module. " +
+          "Required for gamepiece reactives. Omit for role reactives.",
+      ),
+    exhaustedFilter: z
+      .enum(["any", "ready-only", "exhausted-only"])
+      .default("any")
+      .describe(
+        "Which exhausted states allow this reactive to be offered. " +
+          "'any' (default): offered regardless of exhausted state. " +
+          "'ready-only': only offered when the piece is ready/untapped. " +
+          "'exhausted-only': only offered when the piece is exhausted/tapped.",
+      ),
+    faceFilter: z
+      .enum(["any", "face-up-only", "face-down-only"])
+      .default("face-up-only")
+      .describe(
+        "Which face states allow this reactive to be offered. " +
+          "'face-up-only' (default): hidden pieces cannot be offered as reactives. " +
+          "'any': offered regardless of face state. " +
+          "'face-down-only': only offered when the piece is face-down.",
+      ),
+  })
+  .describe(
+    "A player-choice reactive declaration. When the structural trigger fires, eligible pieces " +
+      "are highlighted and the player may choose to activate. If activated, `effect` fires " +
+      "immediately (intercepting the trigger), then `onUse` executes. The player may decline.",
   );
 
 // ---------------------------------------------------------------------------
@@ -1872,11 +2121,20 @@ export const EffectsModuleSchema = z
           "or role passives. Each passive has a unique id referenced by catalog passiveBindings " +
           "or role passives[]. Omit if the game has no passive effects.",
       ),
+    reactives: z
+      .array(ReactiveEffectSchema)
+      .optional()
+      .describe(
+        "Named reactive declarations available to be bound to gamepiece reactive slots. " +
+          "Each reactive has a unique id referenced by catalog reactiveBindings. " +
+          "Unlike passives (automatic), reactives highlight eligible pieces and await player input. " +
+          "Omit if the game has no player-choice reactive effects.",
+      ),
   })
   .describe(
-    "The effects module — a named library of all atomic game-state operations and passive " +
-      "effect declarations. No dependencies on other spec modules (all IDs are forward references). " +
-      "Referenced by actions, flow, mechanics, and the catalog.",
+    "The effects module — a named library of all atomic game-state operations, passive " +
+      "effect declarations, and reactive declarations. No dependencies on other spec modules " +
+      "(all IDs are forward references). Referenced by actions, flow, mechanics, and the catalog.",
   );
 
 /**
@@ -1957,8 +2215,10 @@ export type SetRandomEffect = z.infer<typeof SetRandomEffectSchema>;
 export type OrientEffect = z.infer<typeof OrientEffectSchema>;
 export type CustomEffect = z.infer<typeof CustomEffectSchema>;
 export type CancelEffect = z.infer<typeof CancelEffectSchema>;
-export type AttenuateEffect = z.infer<typeof AttenuateEffectSchema>;
+export type AdjustEffect = z.infer<typeof AdjustEffectSchema>;
+export type PassiveTrigger = z.infer<typeof PassiveTriggerSchema>;
 export type PassiveEffect = z.infer<typeof PassiveEffectSchema>;
+export type ReactiveEffect = z.infer<typeof ReactiveEffectSchema>;
 export type MessageRecipient = z.infer<typeof MessageRecipientSchema>;
 export type MessageEffect = z.infer<typeof MessageEffectSchema>;
 export type LlmOutput = z.infer<typeof LlmOutputSchema>;

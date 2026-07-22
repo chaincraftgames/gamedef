@@ -258,6 +258,27 @@ export const PassiveSlotSchema = z
       "This decouples piece type structure from per-card passive effects.",
   );
 
+export const ReactiveSlotSchema = z
+  .object({
+    id: z
+      .string()
+      .describe(
+        "Slot identifier. Referenced in catalog reactiveBindings to bind a named or inline " +
+          "reactive to this piece instance. The catalog entry fills in which specific " +
+          "reactive occupies this slot — enabling different instances of the same type to " +
+          "carry different (or no) reactives.",
+      ),
+    description: z
+      .string()
+      .optional()
+      .describe("Human-readable description of what kind of reactive this slot holds."),
+  })
+  .describe(
+    "A named binding point for a piece-instance reactive effect. " +
+      "Defined on the type; the catalog entry provides the actual reactive. " +
+      "This decouples piece type structure from per-card reactive effects.",
+  );
+
 export const ActionSlotSchema = z
   .object({
     id: z
@@ -374,6 +395,15 @@ export const GamepieceTypeSchema = z
           "occupies each slot — so different instances of the same type can have different passives. " +
           "Omit for piece types that never carry passive effects.",
       ),
+    reactiveSlots: z
+      .array(ReactiveSlotSchema)
+      .optional()
+      .describe(
+        "Named binding points for piece-instance reactive effects. " +
+          "The catalog entry fills in which reactive (by ID reference or inline definition) " +
+          "occupies each slot — so different instances of the same type can have different reactives. " +
+          "Omit for piece types that never carry player-choice reactive effects.",
+      ),
     hasFaceState: z
       .boolean()
       .default(false)
@@ -460,6 +490,7 @@ export type PropertyVisibility = z.infer<typeof PropertyVisibilitySchema>;
 export type GamepieceProperty = z.infer<typeof GamepiecePropertySchema>;
 export type InventorySlot = z.infer<typeof InventorySlotSchema>;
 export type PassiveSlot = z.infer<typeof PassiveSlotSchema>;
+export type ReactiveSlot = z.infer<typeof ReactiveSlotSchema>;
 export type ActionSlot = z.infer<typeof ActionSlotSchema>;
 export type GamepieceType = z.infer<typeof GamepieceTypeSchema>;
 export type GamepieceTypesModule = z.infer<typeof GamepieceTypesModuleSchema>;

@@ -16,10 +16,9 @@ describe("PlayersModuleSchema — role passives", () => {
           passives: [
             {
               id: "divine-protection",
-              trigger: ["deal-damage"],
-              scope: "owner-targeted",
+              trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
               effects: [
-                { kind: "attenuate", adjustment: { delta: 1 } },
+                { kind: "adjust", adjustment: { delta: 1 } },
               ],
             },
           ],
@@ -40,11 +39,10 @@ describe("PlayersModuleSchema — role passives", () => {
           passives: [
             {
               id: "rage-power",
-              trigger: ["deal-damage"],
-              scope: "owner-originated",
+              trigger: { kind: "state-write", scope: "actor", path: "player.property.hp", direction: "decrease" },
               effects: [
                 {
-                  kind: "attenuate",
+                  kind: "adjust",
                   adjustment: { delta: { var: "player.property.rage", negate: true } },
                 },
               ],
@@ -53,7 +51,7 @@ describe("PlayersModuleSchema — role passives", () => {
         },
       ],
     });
-    expect(result.roles![0].passives![0].scope).toBe("owner-originated");
+    expect(result.roles![0].passives![0].trigger.scope).toBe("actor");
   });
 
   it("accepts a role without passives", () => {

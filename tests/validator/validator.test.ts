@@ -443,8 +443,7 @@ describe("Catalog binding validation", () => {
           effects: [makeEffect("e1")],
           passives: [{
             id: "armor-absorb",
-            trigger: ["deal-damage"],
-            scope: "owner-targeted",
+            trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           }],
         },
@@ -467,8 +466,7 @@ describe("Catalog binding validation", () => {
           effects: [makeEffect("e1")],
           passives: [{
             id: "armor-absorb",
-            trigger: ["deal-damage"],
-            scope: "owner-targeted",
+            trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           }],
         },
@@ -517,8 +515,8 @@ describe("Duplicate passive ID detection", () => {
         effects: {
           effects: [makeEffect("e1")],
           passives: [
-            { id: "armor", trigger: ["deal-damage"], scope: "owner-targeted", effects: [{ kind: "cancel-effect" }] },
-            { id: "armor", trigger: ["deal-damage"], scope: "owner-originated", effects: [{ kind: "cancel-effect" }] },
+            { id: "armor", trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" }, effects: [{ kind: "cancel-effect" }] },
+            { id: "armor", trigger: { kind: "state-write", scope: "actor", path: "player.property.hp", direction: "decrease" }, effects: [{ kind: "cancel-effect" }] },
           ],
         },
       }),

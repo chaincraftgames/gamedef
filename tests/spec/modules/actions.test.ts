@@ -46,13 +46,13 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         inputs: [
           {
             id: "quantity",
-            type: { kind: "integer", min: 1, max: 30 },
+            type: { kind: "number", min: 1, max: 30 },
             label: "Quantity",
             validation: "Must be strictly higher than the current bid quantity unless face-value also increases",
           },
           {
             id: "face-value",
-            type: { kind: "integer", min: 1, max: 6 },
+            type: { kind: "number", min: 1, max: 6 },
             label: "Face Value",
           },
         ],
@@ -174,7 +174,7 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         effects: [{ kind: "cancel-effect" }],
       },
 
-      // Reactive reaction — after timing (attenuate the effect)
+      // Reactive reaction — after timing (adjust the effect)
       {
         id: "resilience",
         label: "Resilience",
@@ -201,8 +201,8 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         id: "configure-game",
         label: "Configure",
         inputs: [
-          { id: "rounds", type: { kind: "integer", min: 1, max: 10 } },
-          { id: "speed", type: { kind: "float", min: 0.5, max: 2.0 } },
+          { id: "rounds", type: { kind: "number", min: 1, max: 10 } },
+          { id: "speed", type: { kind: "number", min: 0.5, max: 2.0, integer: false } },
           { id: "name", type: { kind: "string" } },
           { id: "hardcore", type: { kind: "boolean" } },
           { id: "variant", type: { kind: "enum", values: ["classic", "speed", "team"] } },
@@ -230,7 +230,7 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
     const bid = result.actions.find((a) => a.id === "make-bid")!;
     expect(bid.inputs).toHaveLength(2);
     expect(bid.inputs![0].id).toBe("quantity");
-    expect(bid.inputs![0].type.kind).toBe("integer");
+    expect(bid.inputs![0].type.kind).toBe("number");
   });
 
   it("preserves { param } in inline effects", () => {
@@ -733,14 +733,14 @@ describe("ActionsModuleSchema — reactive input types", () => {
     });
   });
 
-  it("accepts attenuate effect in reactive action", () => {
+  it("accepts adjust effect in reactive action", () => {
     const result = ok({
       actions: [
         {
           id: "brace",
           reactive: { trigger: "deal-damage", timing: "before" },
           effects: [
-            { kind: "attenuate", adjustment: { delta: 2 } },
+            { kind: "adjust", adjustment: { delta: 2 } },
           ],
         },
       ],
@@ -763,14 +763,14 @@ describe("ActionsModuleSchema — reactive input types", () => {
     expect(result.actions[0].effects.length).toBe(1);
   });
 
-  it("accepts attenuate with mult in reactive action", () => {
+  it("accepts adjust with mult in reactive action", () => {
     const result = ok({
       actions: [
         {
           id: "shield-block",
           reactive: { trigger: "deal-damage", timing: "before" },
           effects: [
-            { kind: "attenuate", adjustment: { mult: 0.5 } },
+            { kind: "adjust", adjustment: { mult: 0.5 } },
           ],
         },
       ],

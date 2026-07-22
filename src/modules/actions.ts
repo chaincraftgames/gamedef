@@ -29,7 +29,7 @@
  *   subflows it is eligible for.
  * - 'reactive' declares that this action fires in response to a specific named effect.
  *   'timing: before' = fires before the triggering effect resolves. Use 'cancel-effect'
- *   to void it entirely, 'attenuate' to modify its numeric value, or neither to let it
+   *   to void it entirely, 'adjust' to modify its numeric value, or neither to let it
  *   proceed after the reaction completes.
  *   'timing: after' = reaction: effect resolves normally, then this action fires to
  *   counter-attack, heal, or apply secondary consequences.
@@ -49,11 +49,11 @@
  *     label: Make Bid
  *     inputs:
  *       - id: quantity
- *         type: { kind: integer, min: 1, max: 30 }
+ *         type: { kind: number, min: 1, max: 30 }
  *         label: Quantity
  *         validation: Must be strictly higher than current bid, unless face-value also increases
  *       - id: face-value
- *         type: { kind: integer, min: 1, max: 6 }
+ *         type: { kind: number, min: 1, max: 6 }
  *         label: Face Value
  *     effects:
  *       - kind: update
@@ -106,11 +106,11 @@ import { JsonLogicSchema } from "./common.js";
  * ```yaml
  * inputs:
  *   - id: quantity
- *     type: { kind: integer, min: 1, max: 30 }
+ *     type: { kind: number, min: 1, max: 30 }
  *     label: Quantity
- *     validation: Must be strictly higher than current bid quantity unless face-value also increases
+ *     validation: Must be strictly higher than current bid, unless face-value also increases
  *   - id: face-value
- *     type: { kind: integer, min: 1, max: 6 }
+ *     type: { kind: number, min: 1, max: 6 }
  *     label: Face Value
  *   - id: target-player
  *     type: { kind: enum, values: [player1, player2, player3, player4] }
@@ -143,8 +143,7 @@ export const ActionInputSchema = z
       ),
     type: z
       .discriminatedUnion("kind", [
-        z.object({ kind: z.literal("integer"), min: z.number().int().optional(), max: z.number().int().optional() }),
-        z.object({ kind: z.literal("float"), min: z.number().optional(), max: z.number().optional() }),
+        z.object({ kind: z.literal("number"), min: z.number().optional(), max: z.number().optional(), integer: z.boolean().optional().describe("If true, only whole numbers are accepted. Defaults to true.") }),
         z.object({ kind: z.literal("string") }),
         z.object({ kind: z.literal("boolean") }),
         z.object({ kind: z.literal("enum"), values: z.array(z.string()).min(2) }),
@@ -326,10 +325,10 @@ export const ActionInputSchema = z
  * label: Make Bid
  * inputs:
  *   - id: quantity
- *     type: { kind: integer, min: 1, max: 30 }
+ *     type: { kind: number, min: 1, max: 30 }
  *     validation: Must exceed current bid quantity unless face-value also increases
  *   - id: face-value
- *     type: { kind: integer, min: 1, max: 6 }
+ *     type: { kind: number, min: 1, max: 6 }
  * effects:
  *   - kind: update
  *     pieces: { inventory: current-bid, select: top }
@@ -365,7 +364,7 @@ export const ActionInputSchema = z
  * effects:
  *   - kind: cancel-effect     # void the triggering effect entirely
  * ```
- * @example Reactive attenuate — reduce incoming damage by armor rating (var delta)
+ * @example Reactive adjust — reduce incoming damage by armor rating (var delta)
  * ```yaml
  * id: armor-absorb
  * label: Armor Absorb
@@ -373,10 +372,10 @@ export const ActionInputSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { delta: { var: "player.property.armorRating" } }
  * ```
- * @example Reactive attenuate — halve incoming damage (literal mult)
+ * @example Reactive adjust — halve incoming damage (literal mult)
  * ```yaml
  * id: shield-block
  * label: Shield Block
@@ -384,7 +383,7 @@ export const ActionInputSchema = z
  *   trigger: deal-damage
  *   timing: before
  * effects:
- *   - kind: attenuate
+ *   - kind: adjust
  *     adjustment: { mult: 0.5 }
  * ```
  * @example Reactive counter-attack — damage the creature that attacked you
@@ -506,7 +505,7 @@ export const ActionSchema = z
           .describe(
             "'before': this action fires before the triggering effect resolves. " +
               "The reactive action's effects execute first — use 'cancel-effect' to void " +
-              "the trigger entirely, 'attenuate' to modify its numeric value, or neither " +
+              "the trigger entirely, 'adjust' to modify its numeric value, or neither " +
               "to let it proceed unchanged after the reaction completes. " +
               "'after': reaction — the triggering effect resolves normally, then this action " +
               "fires. Use for counter-attacks, healing, or secondary responses.",

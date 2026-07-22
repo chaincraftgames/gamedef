@@ -167,8 +167,8 @@ export const JsonLogicSchema: z.ZodType<JsonLogicValue> = z.lazy(() =>
  *
  * @example
  * ```yaml
- * { kind: integer, min: 0, max: 10 }   # bounded integer
- * { kind: float }                       # unbounded float
+ * { kind: number, min: 0, max: 10 }       # bounded number
+ * { kind: number, integer: false }         # unbounded float (rare)
  * { kind: enum, values: [red, green] }  # enumeration
  * { kind: boolean }                     # true/false flag
  * { kind: string }                      # free text
@@ -181,14 +181,10 @@ export const JsonLogicSchema: z.ZodType<JsonLogicValue> = z.lazy(() =>
  */
 export const PropertyTypeSchema = z.discriminatedUnion("kind", [
   z.object({
-    kind: z.literal("integer"),
-    min: z.number().int().optional().describe("Inclusive minimum value, if constrained"),
-    max: z.number().int().optional().describe("Inclusive maximum value, if constrained"),
-  }),
-  z.object({
-    kind: z.literal("float"),
+    kind: z.literal("number"),
     min: z.number().optional().describe("Inclusive minimum value, if constrained"),
     max: z.number().optional().describe("Inclusive maximum value, if constrained"),
+    integer: z.boolean().optional().describe("If true, only whole numbers are accepted. Defaults to true."),
   }),
   z.object({
     kind: z.literal("string"),
