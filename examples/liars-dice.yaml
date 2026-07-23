@@ -9,14 +9,14 @@ state:
     properties:
       - id: currentBidQuantity
         type:
-          kind: integer
+          kind: number
           min: 0
           max: 30
         default: 0
         description: Quantity of dice declared in the current round's bid. 0 = no bid yet.
       - id: currentBidFace
         type:
-          kind: integer
+          kind: number
           min: 0
           max: 6
         default: 0
@@ -28,7 +28,7 @@ state:
         description: Player ID of the player who made the current bid. Empty string = no bid yet.
       - id: activePlayers
         type:
-          kind: integer
+          kind: number
           min: 0
         default:
           fromPlayerCount: true
@@ -46,7 +46,7 @@ state:
         default: ""
         description: >-
           Player ID of the loser of the most recent challenge. Set by
-          resolve-challenge; used by eliminate-die to remove the correct die.
+          resolveChallenge; used by eliminateDie to remove the correct die.
   player:
     properties:
       - id: isActive
@@ -64,18 +64,18 @@ gamepieceTypes:
         - id: face
           label: Face
           type:
-            kind: integer
+            kind: number
             min: 1
             max: 6
           mutable: true
           visibility: always
           description: >-
-            The face currently showing. The player-cup inventory's owner
+            The face currently showing. The playerCup inventory's owner
             visibility controls who can see dice inside it.
 
 inventories:
   types:
-    - id: player-cup
+    - id: playerCup
       scope:
         kind: player
       accepts:
@@ -87,7 +87,7 @@ inventories:
 
 effects:
   effects:
-    - id: deal-dice
+    - id: dealDice
       kind: distribute
       from:
         inventory: "game:unassigned"
@@ -95,89 +95,89 @@ effects:
         ofType: die
       to:
         scope: all-players
-        inventory: player-cup
+        inventory: playerCup
       count: 5
 
-    - id: roll-all-dice
+    - id: rollAllDice
       kind: roll
       pieces:
-        inventory: player-cup
+        inventory: playerCup
         select: all
 
-    - id: reveal-all-dice
+    - id: revealAllDice
       kind: reveal
       pieces:
-        inventory: player-cup
+        inventory: playerCup
         select: all
       to: all
 
-    - id: hide-all-dice
+    - id: hideAllDice
       kind: hide
       pieces:
-        inventory: player-cup
+        inventory: playerCup
         select: all
 
-    - id: reset-bid
+    - id: resetBid
       kind: set-state
       path: game.property.currentBidQuantity
       value: 0
 
-    - id: reset-bid-face
+    - id: resetBidFace
       kind: set-state
       path: game.property.currentBidFace
       value: 0
 
-    - id: reset-bidder
+    - id: resetBidder
       kind: set-state
       path: game.property.currentBidder
       value: ""
 
-    - id: reset-challenge-made
+    - id: resetChallengeMade
       kind: set-state
       path: game.property.challengeMade
       value: false
 
-    - id: reset-round-loser
+    - id: resetRoundLoser
       kind: set-state
       path: game.property.roundLoser
       value: ""
 
-    - id: set-challenge-made
+    - id: setChallengeMade
       kind: set-state
       path: game.property.challengeMade
       value: true
 
-    - id: resolve-challenge
+    - id: resolveChallenge
       kind: custom
       description: >-
-        Count all dice across every player's player-cup where face equals
+        Count all dice across every player's playerCup where face equals
         game.property.currentBidFace. If the total count is greater than or
         equal to game.property.currentBidQuantity, the challenge fails — set
         game.property.roundLoser to the challenger's player ID. If the total
         is less, the challenge succeeds — set game.property.roundLoser to the
         value of game.property.currentBidder.
 
-    - id: eliminate-die
+    - id: eliminateDie
       kind: move
       from:
         player:
           stateRef: game.property.roundLoser
-        inventory: player-cup
+        inventory: playerCup
         select: random
         count: 1
       to:
         inventory: "game:unassigned"
 
-    - id: check-elimination
+    - id: checkElimination
       kind: custom
       description: >-
-        For each player: if their player-cup contains 0 dice, set
+        For each player: if their playerCup contains 0 dice, set
         player.property.isActive to false and decrement
         game.property.activePlayers by 1.
 
 actions:
   actions:
-    - id: make-bid
+    - id: makeBid
       label: Make Bid
       description: >-
         Declare how many dice across all players show a given face value.
@@ -186,7 +186,7 @@ actions:
         - id: quantity
           label: Quantity
           type:
-            kind: integer
+            kind: number
             min: 1
             max: 30
           validation: >-
@@ -195,7 +195,7 @@ actions:
         - id: faceValue
           label: Face Value
           type:
-            kind: integer
+            kind: number
             min: 1
             max: 6
       effects:
@@ -222,16 +222,13 @@ actions:
       description: >-
         Call out the current bid as a lie. Reveals all dice to all players,
         resolves the round, then waits for a player to start the next round.
-      preconditions:
-        "!=":
-          - var: game.property.currentBidQuantity
-          - 0
+      preconditions: "game.property.currentBidQuantity != 0"
       effects:
-        - ref: reveal-all-dice
-        - ref: resolve-challenge
-        - ref: eliminate-die
-        - ref: check-elimination
-        - ref: set-challenge-made
+        - ref: revealAllDice
+        - ref: resolveChallenge
+        - ref: eliminateDie
+        - ref: checkElimination
+        - ref: setChallengeMade
         - kind: message
           to: all
           template: >-
@@ -240,49 +237,40 @@ actions:
             {{state.game.property.currentBidFace}}s — all dice are now
             revealed. Type "start next round" when you're ready to continue.
 
-    - id: start-next-round
+    - id: startNextRound
       label: Start Next Round
       description: >-
         Hide the dice, roll for the next round, and reset the bid. Use
         this after reviewing the results of a challenge.
       effects:
-        - ref: hide-all-dice
-        - ref: roll-all-dice
-        - ref: reset-bid
-        - ref: reset-bid-face
-        - ref: reset-bidder
-        - ref: reset-challenge-made
-        - ref: reset-round-loser
+        - ref: hideAllDice
+        - ref: rollAllDice
+        - ref: resetBid
+        - ref: resetBidFace
+        - ref: resetBidder
+        - ref: resetChallengeMade
+        - ref: resetRoundLoser
 
 flow:
   root:
     kind: game
     hooks:
       onEnter:
-        - ref: deal-dice        # once at game start — dice stay in cups all game
-        - ref: roll-all-dice    # initial roll before the first round
+        - ref: dealDice        # once at game start — dice stay in cups all game
+        - ref: rollAllDice    # initial roll before the first round
     winConditions:
       - rule: condition
-        condition:
-          "==":
-            - var: player.property.isActive
-            - true
+        condition: "player.property.isActive == true"
         onVictory:
           - kind: message
             to: all
             template: "{{game.winners[0]}} wins Liar's Dice — the last player with dice remaining!"
     children:
       - kind: loop              # game loop — runs until one player remains
-        endCondition:
-          "<=":
-            - var: game.property.activePlayers
-            - 1
+        endCondition: "game.property.activePlayers <= 1"
         children:
           - kind: loop          # bidding loop — players bid until someone challenges
-            endCondition:
-              "==":
-                - var: game.property.challengeMade
-                - true
+            endCondition: "game.property.challengeMade == true"
             children:
               - kind: turn
                 actor: active-player
@@ -293,14 +281,14 @@ flow:
                   kind: choice
                   options:
                     - kind: action
-                      ref: make-bid
+                      ref: makeBid
                     - kind: action
                       ref: challenge
           - kind: turn          # review turn — any active player starts the next round
             actor: active-player
             grammar:
               kind: action
-              ref: start-next-round
+              ref: startNextRound
 
 catalog:
   entries:

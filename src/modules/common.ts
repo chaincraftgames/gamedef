@@ -91,72 +91,138 @@ export const StatePathSchema = z
 export type StatePath = z.infer<typeof StatePathSchema>;
 
 // ---------------------------------------------------------------------------
-// JSONLogic precondition schema
+// Condition expression schema
 // ---------------------------------------------------------------------------
 
 /**
- * A JSONLogic expression used to declare preconditions on actions and action slots.
- * The engine evaluates this against runtime state before offering or accepting the action.
+ * An infix condition expression string compiled to a TypeScript predicate by the game compiler.
  *
- * JSONLogic reference: https://jsonlogic.com/operations.html
+ * ## Syntax
  *
- * **State path conventions** (used with the `var` operator):
+ * Standard infix with comparisons and boolean connectives:
+ * ```
+ * comparisons:  >  >=  <  <=  ==  !=
+ * boolean:      and  or  not
+ * grouping:     ( )
+ * ```
+ * The compiler normalises common variants automatically:
+ * `&&` → `and`, `||` → `or`, `=` → `==`, `!==` → `!=`, `<>` → `!=`.
  *
- * Available in `ActionSchema.preconditions`:
+ * ## State path identifiers
+ *
+ * The available paths depend on the evaluation context:
+ *
+ * **Action preconditions** (`ActionSchema.preconditions`):
  * - `input.<id>`                  — value of an action input declared in inputs[]
  * - `actor.property.<id>`         — property on the acting player
  * - `actor.inventory.<id>.count`  — item count in the actor's named inventory
- * - `game.property.<id>`          — game-level property (forward ref to a state tracker)
+ * - `game.property.<id>`          — game-level property
  * - `game.inventory.<id>.count`   — item count in a game-level inventory
  *
- * Available in `ActionSlotSchema.preconditions` (piece-instance context):
+ * **Piece-slot context** (`ActionSlotSchema.preconditions`):
  * - `piece.property.<id>`         — property on the gamepiece instance holding this slot
- * - `piece.inventory.<id>.count`  — item count in a piece's own inventory slot
+ * - `piece.inventory.<id>.count`  — item count in a piece's own inventory
  * - `actor.property.<id>`         — property on the acting player
  * - `actor.inventory.<id>.count`  — item count in the actor's named inventory
  *
- * @example Can only bid if game has a current bid set
- * ```json
- * { "!=": [{ "var": "game.inventory.current-bid.count" }, 0] }
+ * **Flow end conditions** (`LoopFlowNode.endCondition`, `SimultaneousFlowNode.endCondition`):
+ * - `game.property.<id>`          — game-level property
+ * - `game.inventory.<id>.count`   — item count in a game-level inventory
+ * - `actor.property.<id>`         — property on the acting player
+ *
+ * **Player matching** (`PlayerTarget.matching.condition`, `player-select.filter`):
+ * - `player.property.<id>`        — the candidate player's property
+ * - `player.inventory.<id>.count` — item count in the candidate player's inventory
+ *
+ * **Gamepiece filter** (`gamepiece-select.filter`):
+ * - `piece.property.<id>`         — the candidate piece's property
+ * - `piece.typeId`                — the candidate piece's type ID
+ *
+ * ## Built-in functions
+ *
+ * - `count(inventory)`
+ *   Number of pieces in an inventory path, e.g. `count(game.inventory.deck)`.
+ *   Equivalent to the `.count` suffix but usable in any expression position.
+ *
+ * - `all(players, <expr>)`
+ *   Universal quantifier — true when `<expr>` holds for every player in the game.
+ *   Inside `<expr>`, use `player.property.<id>` and `player.inventory.<id>.count`
+ *   to reference each candidate player.
+ *   Example: `all(players, player.property.ready == true)`
+ *
+ * - `any(players, <expr>)`
+ *   Existential quantifier — true when `<expr>` holds for at least one player.
+ *   Example: `any(players, player.property.roundsWon >= 5)`
+ *
+ * ## Computed identifiers
+ *
+ * None currently defined. Computed state helpers that were needed with the old
+ * JsonLogic interpreter (e.g., `allPlayersCompletedActions`) are no longer
+ * necessary — the simultaneous node's fork-join handles that structurally.
+ *
+ * @example Loop exits when a winner is set
+ * ```yaml
+ * endCondition: "game.property.gameWinner != ''"
  * ```
- * @example Can only use card action if piece has at least 1 charge
- * ```json
- * { ">=": [{ "var": "piece.property.charges" }, 1] }
+ * @example Loop exits when deck is empty
+ * ```yaml
+ * endCondition: "game.inventory.deck.count == 0"
  * ```
- * @example Compound: actor has enough coins AND it's not their first turn
- * ```json
- * { "and": [
- *   { ">=": [{ "var": "actor.property.coins" }, 3] },
- *   { ">":  [{ "var": "actor.property.turnsTaken" }, 0] }
- * ]}
+ * @example Action requires coins and prior turns
+ * ```yaml
+ * preconditions: "actor.property.coins >= 3 and actor.property.turnsTaken > 0"
+ * ```
+ * @example Action available only when a bid has been placed
+ * ```yaml
+ * preconditions: "game.inventory.current-bid.count != 0"
+ * ```
+ * @example Loop exits when any player reaches 50 points
+ * ```yaml
+ * endCondition: "any(players, player.property.score >= 50)"
+ * ```
+ * @example Player target matching — apply bonus to players who bid correctly
+ * ```yaml
+ * target:
+ *   kind: matching
+ *   condition: "player.property.bidCorrect == true"
  * ```
  */
-export type JsonLogicValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonLogicValue[]
-  | { [op: string]: JsonLogicValue };
-
-export const JsonLogicSchema: z.ZodType<JsonLogicValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(JsonLogicSchema),
-    z.record(JsonLogicSchema),
-  ]),
-).describe(
-  "A JSONLogic expression evaluated against runtime state. " +
-    "Use the 'var' operator with state paths to reference game state. " +
-    "State paths: 'input.<id>' (action inputs), 'actor.property.<id>', " +
-    "'actor.inventory.<id>.count', 'piece.property.<id>' (slot context only), " +
-    "'piece.inventory.<id>.count' (slot context only), 'game.property.<id>', " +
-    "'game.inventory.<id>.count'. " +
-    "Standard JSONLogic operators: '>', '>=', '<', '<=', '==', '!=', 'and', 'or', 'not', '!'.",
+export const ConditionExpressionSchema = z.string().describe(
+  "An infix condition expression compiled to a TypeScript predicate by the game compiler. " +
+    "Operators: >, >=, <, <=, ==, != (comparisons); and, or, not (boolean). " +
+    "Variants &&/||/= are normalised automatically. " +
+    "Paths: game.property.<id>, game.inventory.<id>.count, " +
+    "actor.property.<id>, actor.inventory.<id>.count, " +
+    "player.property.<id> (player-filter context), player.inventory.<id>.count, " +
+    "piece.property.<id> (gamepiece-filter context), piece.typeId. " +
+    "Functions: count(inventory), all(players, expr), any(players, expr).",
 );
+
+export type ConditionExpression = z.infer<typeof ConditionExpressionSchema>;
+
+/** @deprecated Renamed to ConditionExpressionSchema. */
+export const JsonLogicSchema = ConditionExpressionSchema;
+
+// ---------------------------------------------------------------------------
+// Identifier
+// ---------------------------------------------------------------------------
+
+/**
+ * All user-defined IDs (effects, actions, inventories, gamepiece types, state
+ * properties, flow nodes, roles, catalog piece IDs) must be camelCase to ensure
+ * they parse unambiguously in condition expressions (hyphens are subtraction operators).
+ *
+ * @example
+ * Valid: `currentBid`, `dealDice`, `playerCup`, `roundWinner`
+ * Invalid: `current-bid`, `deal-dice`, `player-cup`, `round-winner`
+ */
+export const IdentifierSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z][a-zA-Z0-9]*$/,
+    "must be camelCase — letters and digits only, starting with a letter (no hyphens, underscores, or spaces)",
+  );
+export type Identifier = z.infer<typeof IdentifierSchema>;
 
 // ---------------------------------------------------------------------------
 // Property value types

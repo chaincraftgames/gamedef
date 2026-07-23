@@ -95,7 +95,7 @@
 
 import { z } from "zod";
 import { EffectCallsSchema } from "./effects.js";
-import { JsonLogicSchema } from "./common.js";
+import { ConditionExpressionSchema, IdentifierSchema } from "./common.js";
 
 // ---------------------------------------------------------------------------
 // Action input (player-provided values collected when action is taken)
@@ -135,9 +135,7 @@ import { JsonLogicSchema } from "./common.js";
  */
 export const ActionInputSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Unique identifier for this input within the action. " +
           "Inline effects in the same action reference it via { param: id } in PropertyValue.",
       ),
@@ -187,9 +185,10 @@ export const ActionInputSchema = z
                 "Defaults to 'self'. Use { param: inputId } to select from another player's inventory " +
                 "based on a prior player-select input.",
             ),
-          filter: JsonLogicSchema.optional().describe(
-            "Additional JsonLogic filter on eligible pieces. " +
-              "Evaluated per-piece with vars: 'piece.property.<id>', 'piece.typeId'. " +
+          filter: ConditionExpressionSchema.optional().describe(
+            "Infix expression to filter eligible pieces. " +
+              "Evaluated per-piece. Available paths: 'piece.property.<id>', 'piece.typeId'. " +
+              "Example: 'piece.property.charges > 0' or 'piece.typeId == \"creature\". " +
               "Runtime computes valid options and sends them to UX.",
           ),
         }).describe(
@@ -202,9 +201,10 @@ export const ActionInputSchema = z
           excludeSelf: z.boolean().optional().describe(
             "If true, the acting player cannot select themselves. Defaults to false.",
           ),
-          filter: JsonLogicSchema.optional().describe(
-            "Additional JsonLogic filter on eligible players. " +
-              "Evaluated per-player with vars: 'player.property.<id>', 'player.inventory.<id>.count'. " +
+          filter: ConditionExpressionSchema.optional().describe(
+            "Infix expression to filter eligible players. " +
+              "Evaluated per-player. Available paths: 'player.property.<id>', 'player.inventory.<id>.count'. " +
+              "Example: 'player.property.isActive == true and player.inventory.hand.count > 0'. " +
               "Runtime computes valid options and sends them to UX.",
           ),
         }).describe(
@@ -418,7 +418,7 @@ export const ActionInputSchema = z
  * ```yaml
  * id: challenge
  * label: Challenge
- * preconditions: { "!=": [{ "var": "game.inventory.current-bid.count" }, 0] }
+ * preconditions: "game.inventory.current-bid.count != 0"
  * effects:
  *   - ref: resolve-challenge
  * ```
@@ -426,16 +426,14 @@ export const ActionInputSchema = z
  * ```yaml
  * id: buy-card
  * label: Buy Card
- * preconditions: { ">=": [{ "var": "actor.property.coins" }, 3] }
+ * preconditions: "actor.property.coins >= 3"
  * effects:
  *   - ref: purchase-card
  * ```
  */
 export const ActionSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Unique identifier for this action. Referenced by flow phases and action slots.",
       ),
     label: z
@@ -472,12 +470,13 @@ export const ActionSchema = z
           "spans many subflows and listing them all in flow would be excessively verbose. " +
           "Omit when availability is fully determined by slot definitions or flow declarations.",
       ),
-    preconditions: JsonLogicSchema.optional().describe(
-      "JSONLogic expression evaluated against runtime state before the action is offered or " +
-        "accepted. If false, the action is unavailable regardless of flow context. " +
-        "State paths: 'actor.property.<id>', 'actor.inventory.<id>.count', " +
-        "'game.property.<id>', 'game.inventory.<id>.count'. " +
-        "Cross-input validation rules (e.g., bid must exceed current bid) belong in " +
+    preconditions: ConditionExpressionSchema.optional().describe(
+      "Infix expression evaluated before the action is offered or accepted. " +
+        "If false, the action is unavailable regardless of flow context. " +
+        "Available paths: 'actor.property.<id>', 'actor.inventory.<id>.count', " +
+        "'game.property.<id>', 'game.inventory.<id>.count', 'input.<id>'. " +
+        "Example: 'actor.property.coins >= 3 and game.property.roundStarted == true'. " +
+        "Cross-input validation (e.g., bid must exceed current bid) belongs in " +
         "ActionInput.validation instead. Use preconditions for state-dependent gate conditions.",
     ),
     interrupt: z

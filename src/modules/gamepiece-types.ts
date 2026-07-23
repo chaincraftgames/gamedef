@@ -43,27 +43,27 @@
  *         visibility: revealed
  *     hasFaceState: true
  *     inventorySlots:
- *       - id: attached-tokens
- *         inventoryTypeId: token-pool
- *   - id: carcassonne-tile
+ *       - id: attachedTokens
+ *         inventoryTypeId: tokenPool
+ *   - id: carcassonneTile
  *     category: tile
  *     orientationCount: 4
- *   - id: standard-die
+ *   - id: standardDie
  *     category: dice
  *     faceCount: 6
- *   - id: player-board
+ *   - id: playerBoard
  *     category: board
  *     description: Each player's personal play area
  *     inventorySlots:
  *       - id: hand
- *         inventoryTypeId: player-hand
+ *         inventoryTypeId: playerHand
  *       - id: discard
- *         inventoryTypeId: discard-pile
+ *         inventoryTypeId: discardPile
  * ```
  */
 
 import { z } from "zod";
-import { JsonLogicSchema, PropertyTypeSchema } from "#gamedef/modules/common.js";
+import { ConditionExpressionSchema, IdentifierSchema, PropertyTypeSchema } from "#gamedef/modules/common.js";
 import { PieceMechanicSchema } from "#gamedef/mechanics/index.js";
 
 
@@ -124,12 +124,10 @@ export const PropertyVisibilitySchema = z
  */
 export const GamepiecePropertySchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Programmatic identifier for this property. Used as the key in catalog instances, " +
           "runtime state, and effect target paths (e.g., 'hitPoints', 'manaCost', 'exhausted'). " +
-          "Use camelCase or kebab-case. Referenced by effects and actions — must be stable.",
+          "Must be camelCase. Referenced by effects and actions — must be stable.",
       ),
     label: z
       .string()
@@ -178,27 +176,25 @@ export const GamepieceFieldSchema = GamepiecePropertySchema;
  * @example Player hand slot
  * ```yaml
  * id: hand
- * inventoryTypeId: player-hand
+ * inventoryTypeId: playerHand
  * description: Cards held by this player
  * ```
  * @example Two equipment slots referencing the same inventory type
  * ```yaml
- * - id: left-hand
- *   inventoryTypeId: equipment-slot
- * - id: right-hand
- *   inventoryTypeId: equipment-slot
+ * - id: leftHand
+ *   inventoryTypeId: equipmentSlot
+ * - id: rightHand
+ *   inventoryTypeId: equipmentSlot
  * ```
  */
 export const InventorySlotSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Local slot identifier. Used as the key in effect target paths " +
           "(e.g., 'player.hand', 'board.resources'). " +
           "Must be unique within this gamepiece type. " +
           "A piece type may hold multiple slots referencing the same inventory type " +
-          "under different ids (e.g., 'left-hand' and 'right-hand' both reference 'equipment').",
+          "under different ids (e.g., 'leftHand' and 'rightHand' both reference 'equipment').",
       ),
     inventoryTypeId: z
       .string()
@@ -239,9 +235,7 @@ export const InventorySlotSchema = z
  */
 export const PassiveSlotSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Slot identifier. Referenced in catalog passiveBindings to bind a named or inline " +
           "passive effect to this piece instance. The catalog entry fills in which specific " +
           "passive occupies this slot — enabling different instances of the same type to " +
@@ -260,9 +254,7 @@ export const PassiveSlotSchema = z
 
 export const ReactiveSlotSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Slot identifier. Referenced in catalog reactiveBindings to bind a named or inline " +
           "reactive to this piece instance. The catalog entry fills in which specific " +
           "reactive occupies this slot — enabling different instances of the same type to " +
@@ -281,11 +273,9 @@ export const ReactiveSlotSchema = z
 
 export const ActionSlotSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Slot identifier. Referenced in the flow DSL via gamepiece-actions nodes " +
-          "(e.g., slot: 'day-action', slot: 'night-action'). " +
+          "(e.g., slot: 'dayAction', slot: 'nightAction'). " +
           "The catalog instance fills in which specific action occupies this slot.",
       ),
     description: z
@@ -301,13 +291,12 @@ export const ActionSlotSchema = z
           "When provided, the engine only offers this slot during matching subflows — " +
           "e.g., a 'day-action' slot available only during the 'day' subflow.",
       ),
-    preconditions: JsonLogicSchema.optional().describe(
-      "JSONLogic expression evaluated against the gamepiece instance's runtime state before " +
+    preconditions: ConditionExpressionSchema.optional().describe(
+      "Infix expression evaluated against the gamepiece instance's state before " +
         "this slot is offered. If false, the slot is unavailable for this piece instance. " +
-        "State paths in this context: 'piece.property.<id>' (property on the piece holding this slot), " +
+        "Available paths: 'piece.property.<id>' (property on the piece holding this slot), " +
         "'piece.inventory.<id>.count', 'actor.property.<id>', 'actor.inventory.<id>.count'. " +
-        "Example: require a charge counter before the slot can be activated: " +
-        "{ '>=': [{ 'var': 'piece.property.charges' }, 1] }",
+        "Example: 'piece.property.charges >= 1'",
     ),
   })
   .describe(
@@ -322,9 +311,7 @@ export const ActionSlotSchema = z
 
 export const GamepieceTypeSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Unique identifier for this type. Referenced throughout the spec by other modules " +
           "(inventories, actions, effects, mechanics, catalog).",
       ),

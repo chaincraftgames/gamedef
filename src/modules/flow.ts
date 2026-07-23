@@ -1,7 +1,7 @@
 /**
  * Flow Module Schema
  *
- * Depends on: effects (EffectCallsSchema), common (JsonLogicSchema).
+ * Depends on: effects (EffectCallsSchema), common (ConditionExpressionSchema).
  * Referenced by: the engine (executes the game loop), actions (interrupt/subflow IDs).
  *
  * The flow module is the game's structural skeleton — it declares HOW the game
@@ -140,7 +140,7 @@
 
 import { z } from "zod";
 import { EffectCallsSchema } from "./effects.js";
-import { JsonLogicSchema, IntRangeSchema } from "./common.js";
+import { ConditionExpressionSchema, IdentifierSchema, IntRangeSchema } from "./common.js";
 
 // ---------------------------------------------------------------------------
 // Flow hooks (effects triggered at structural boundaries)
@@ -556,7 +556,7 @@ export type TurnGrammarNode =
 
 // "until-pass": end when all eligible players have consecutively passed
 const FlowEndConditionSchema = z.union([
-  JsonLogicSchema,
+  ConditionExpressionSchema,
   z.literal("until-pass").describe(
     "End when all eligible players have consecutively passed. " +
       "Each turn grammar should include passable choices so players can signal pass.",
@@ -605,9 +605,11 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
                 "Provide either 'count' or 'endCondition', not both.",
             ),
           endCondition: FlowEndConditionSchema.optional().describe(
-            "Evaluated after each full iteration of children. Exit when true. " +
-              "JSONLogic over game state, or 'until-pass' (exit when all players consecutively pass). " +
-              "State paths: 'game.property.<id>', 'actor.property.<id>', etc. " +
+            "Infix expression evaluated after each full iteration. Exit when true. " +
+              "Example: 'game.property.gameWinner != \"\"' or 'game.inventory.deck.count == 0'. " +
+              "Or the special value 'until-pass' to exit when all players consecutively pass. " +
+              "Paths: game.property.<id>, game.inventory.<id>.count, actor.property.<id>. " +
+              "Functions: all(players, expr), any(players, expr). " +
               "Provide either 'count' or 'endCondition', not both.",
           ),
           finalRound: z
@@ -659,7 +661,7 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
       z
         .object({
           kind: z.literal("turn"),
-          id: z.string().optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
+          id: IdentifierSchema.optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
           label: z.string().optional().describe("Human-readable name shown in the UI."),
           actor: ActorSpecSchema,
           turnOrder: TurnOrderSchema.optional().describe(
@@ -693,15 +695,25 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
       z
         .object({
           kind: z.literal("simultaneous"),
-          id: z.string().optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
+          id: IdentifierSchema.optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
           label: z.string().optional().describe("Human-readable name shown in the UI."),
           actor: ActorSpecSchema.describe("Which player(s) participate."),
           grammar: TurnGrammarNodeSchema.describe(
             "What each actor does. All actors act independently and without seeing each other's choices. " +
-              "Outcomes are hidden until all actors submit, then revealed together.",
+              "Outcomes are hidden until all actors submit, then revealed together. " +
+              "CONSTRAINT: every effect reachable from this grammar must target only the acting player's own " +
+              "state (own properties, own inventories, own gamepieces). " +
+              "Effects on game-scoped inventories, other players' state, or shared board positions are not " +
+              "allowed here — place them in the node's onEnter or onComplete hooks instead. " +
+              "This constraint guarantees that all players' writes commute (order-independent), " +
+              "which is required for the engine's fork-join execution model. " +
+              "Common patterns: deal cards in onEnter, players privately arrange their own hand in the grammar, " +
+              "resolve/compare in onComplete. RNG inside the grammar is limited to player-local entropy " +
+              "(shuffling own inventory, rolling own dice).",
           ),
           endCondition: FlowEndConditionSchema.optional().describe(
-            "Exit condition. JSONLogic over game state, or 'until-pass' (exit when all actors pass). " +
+            "Exit condition. Infix expression over game state, or 'until-pass' (exit when all actors pass). " +
+              "Example: 'any(players, player.property.ready == true)'. " +
               "Useful for open-ended simultaneous phases like a ready-check or open-market.",
           ),
           timeLimit: z
@@ -720,7 +732,10 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
         })
         .describe(
           "All actors submit simultaneously and independently, then outcomes are revealed together. " +
-            "Use for blind bidding, rock-paper-scissors, simultaneous night actions, or ready-checks.",
+            "Use for blind bidding, rock-paper-scissors, simultaneous night actions, or ready-checks. " +
+            "Each actor runs an independent sub-engine over the grammar; all outputs are deferred-visible " +
+            "until the join point (end of phase). Grammar actions must be actor-local (own state only) — " +
+            "shared-state operations belong in hooks. Passive/reactive effects are disabled during the phase.",
         ),
     ])
     .describe("A flow tree node. Three kinds: loop, turn, simultaneous."),
@@ -900,7 +915,7 @@ const RankingWinConditionSchema = z.object({
  * ```yaml
  * winConditions:
  *   - rule: condition
- *     condition: { ">=" : [{ var: "player.inventory.escaped.count" }, 1] }
+ *     condition: "player.inventory.escaped.count >= 1"
  *     onVictory:
  *       - ref: announce-escapees
  * ```
@@ -908,15 +923,16 @@ const RankingWinConditionSchema = z.object({
  * ```yaml
  * winConditions:
  *   - rule: condition
- *     condition: { ">=": [{ var: "player.property.roundWins" }, 3] }
+ *     condition: "player.property.roundWins >= 3"
  * ```
  */
 const ConditionWinConditionSchema = z.object({
   rule: z.literal("condition"),
-  condition: JsonLogicSchema.describe(
-    "JSONLogic expression evaluated per player when the game ends. " +
-      "Variable context: 'player.property.<id>', 'player.inventory.<id>.count'. " +
-      "All players for whom this evaluates to true are declared winners.",
+  condition: ConditionExpressionSchema.describe(
+    "Infix expression evaluated per player when the game ends. " +
+      "Available paths: 'player.property.<id>', 'player.inventory.<id>.count'. " +
+      "All players for whom this evaluates to true are declared winners. " +
+      "Example: 'player.property.isActive == true'",
   ),
   ...onVictoryField,
 });
@@ -929,13 +945,13 @@ const ConditionWinConditionSchema = z.object({
  * ```yaml
  * winConditions:
  *   - rule: role-condition
- *     condition: { ">=": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] }
+ *     condition: "game.property.wolfCount >= game.property.villagerCount"
  *     winners:
  *       roles: [werewolf]
  *     onVictory:
  *       - ref: wolves-win-ceremony
  *   - rule: role-condition
- *     condition: { "<": [{ var: "game.property.wolfCount" }, { var: "game.property.villagerCount" }] }
+ *     condition: "game.property.wolfCount < game.property.villagerCount"
  *     winners:
  *       roles: [villager]
  *     onVictory:
@@ -944,10 +960,11 @@ const ConditionWinConditionSchema = z.object({
  */
 const RoleConditionWinConditionSchema = z.object({
   rule: z.literal("role-condition"),
-  condition: JsonLogicSchema.describe(
-    "JSONLogic expression evaluated against game state when the game ends. " +
-      "Variable context: 'game.property.<id>', 'game.inventory.<id>.count'. " +
-      "If true, players holding any of the listed roles are declared winners.",
+  condition: ConditionExpressionSchema.describe(
+    "Infix expression evaluated against game state when the game ends. " +
+      "Available paths: 'game.property.<id>', 'game.inventory.<id>.count'. " +
+      "If true, players holding any of the listed roles are declared winners. " +
+      "Example: 'game.property.wolfCount >= game.property.villagerCount'",
   ),
   winners: z
     .object({

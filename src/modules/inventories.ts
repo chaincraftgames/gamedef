@@ -83,6 +83,7 @@
  */
 
 import { z } from "zod";
+import { IdentifierSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // Inventory scope
@@ -416,9 +417,7 @@ export const InventoryCapacitySchema = z
  */
 export const InventoryTypeSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Unique identifier for this inventory type. Referenced by gamepiece-types " +
           "(inventorySlot.inventoryTypeId), effects (move targets), and catalog " +
           "(starting inventory assignments).",

@@ -45,7 +45,7 @@
  */
 
 import { z } from "zod";
-import { PropertyTypeSchema } from "#gamedef/modules/common.js";
+import { IdentifierSchema, PropertyTypeSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // State property default value
@@ -196,11 +196,9 @@ export const ComputedPropertySchema = z
  */
 export const StatePropertySchema = z
   .object({
-    id: z
-      .string()
-      .describe(
+    id: IdentifierSchema.describe(
         "Programmatic identifier. Used in dot-path references " +
-          "(e.g., game.property.currentBidQuantity). Use camelCase.",
+          "(e.g., game.property.currentBidQuantity). Must be camelCase.",
       ),
     type: PropertyTypeSchema.describe("The value type for this property."),
     default: StateDefaultSchema.optional().describe(

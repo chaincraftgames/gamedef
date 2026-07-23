@@ -85,7 +85,7 @@
 
 import { z } from "zod";
 import { InventoryPlacementSchema } from "#gamedef/modules/inventories.js";
-import { JsonLogicSchema } from "#gamedef/modules/common.js";
+import { ConditionExpressionSchema, IdentifierSchema } from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // Gamepiece selector (shared across move, flip, update, roll, orient)
@@ -1372,17 +1372,16 @@ export const PlayerTargetSchema = z
     z
       .object({
         kind: z.literal("matching"),
-        condition: JsonLogicSchema.describe(
-          "A JSONLogic expression evaluated per player. " +
-            "Available vars: 'player.property.<id>' (stored and computed state properties), " +
+        condition: ConditionExpressionSchema.describe(
+          "An infix expression evaluated per candidate player. " +
+            "Available paths: 'player.property.<id>' (stored and computed state properties), " +
             "'player.inventory.<id>.count' (total piece count in a player-scoped inventory). " +
-            "For filtered inventory counts (by piece type), define a computed property and " +
-            "reference it via 'player.property.<id>'. " +
-            "Supports standard JSONLogic operators: '>', '>=', '<', '<=', '==', '!=', 'and', 'or', '!'.",
+            "Example: 'player.property.roundsWon >= 3' or " +
+            "'player.inventory.hand.count > 0 and player.property.isActive == true'.",
         ),
       })
       .describe(
-        "All players satisfying a JSONLogic condition evaluated against each player's state.",
+        "All players satisfying an infix condition expression evaluated against each player's state.",
       ),
     z
       .object({ kind: z.literal("trigger-actor") })
@@ -1612,12 +1611,10 @@ export const AdjustEffectSchema = z
 // Named effect (id + kind body — the unit stored in the effects module)
 // ---------------------------------------------------------------------------
 
-const effectId = z
-  .string()
-  .describe(
-    "Unique identifier for this effect. Referenced by actions, flow transitions, " +
-      "and mechanics. Use a descriptive verb-noun slug (e.g., 'draw-card', 'resolve-combat').",
-  );
+const effectId = IdentifierSchema.describe(
+  "Unique identifier for this effect. Referenced by actions, flow transitions, " +
+    "and mechanics. Use camelCase (e.g., 'drawCard', 'resolveCombat').",
+);
 
 const namedEffectBase = { id: effectId };
 

@@ -86,6 +86,7 @@
  */
 
 import { z } from "zod";
+import { IdentifierSchema } from "#gamedef/modules/common.js";
 import { ActionSchema } from "#gamedef/modules/actions.js";
 import { PassiveEffectSchema } from "#gamedef/modules/effects.js";
 
@@ -162,13 +163,10 @@ const InitialPropertiesSchema = z
  */
 export const CatalogEntrySchema = z
   .object({
-    id: z
-      .string()
-      .optional()
-      .describe(
+    id: IdentifierSchema.optional().describe(
         "Optional unique identifier for this specific piece instance. " +
           "Assign when you need to reference this piece by name in setup effects: " +
-          "{ select: { id: white-king } }. " +
+          "{ select: { id: whiteKing } }. " +
           "Not meaningful when quantity > 1 (copies are anonymous).",
       ),
     typeId: z

@@ -44,7 +44,7 @@ gamepieceTypes:
           default: rock
           visibility: never
           description: >-
-            Hidden Rock/Paper/Scissors classification assigned by classify-weapon at
+            Hidden Rock/Paper/Scissors classification assigned by classifyWeapon at
             creation. Never shown to any player. Frozen for the game and read by the
             chaincraft:trump mechanic to resolve each clash deterministically.
         - id: imageUrl
@@ -55,7 +55,7 @@ gamepieceTypes:
           default: ""
           visibility: owner
           description: >-
-            Reference to the generated weapon artwork. Populated by illustrate-weapon at
+            Reference to the generated weapon artwork. Populated by illustrateWeapon at
             creation. Empty in engines without image generation — text play is unaffected.
 
 inventories:
@@ -67,7 +67,7 @@ inventories:
         - weapon
       visibility: owner
       description: >-
-        Each player's workbench of blank weapons waiting to be authored. create-weapon
+        Each player's workbench of blank weapons waiting to be authored. createWeapon
         fills the top blank, classifies and illustrates it, then moves it to the arsenal.
     - id: arsenal
       scope:
@@ -86,7 +86,7 @@ inventories:
       visibility: count-only
       description: >-
         The battlefield. Both players secretly move their selected weapon here each round
-        (count-only keeps the choice hidden until both have committed). reveal-arena makes
+        (count-only keeps the choice hidden until both have committed). revealArena makes
         them public for resolution; the trump mechanic compares them and they return home.
 
 state:
@@ -94,7 +94,7 @@ state:
     properties:
       - id: currentRound
         type:
-          kind: integer
+          kind: number
           min: 0
         default: 0
         description: >-
@@ -102,7 +102,7 @@ state:
           loop's writeIterationTo binding — no manual set-state needed.
       - id: roundsToWin
         type:
-          kind: integer
+          kind: number
           min: 1
         default: 2
         description: >-
@@ -116,7 +116,7 @@ state:
           Player ID of the winner of the most recently resolved clash. Empty string means
           a tie (both weapons shared the same Rock/Paper/Scissors class). Written by the
           chaincraft:trump mechanic's resolve effect (the owner of the winning weapon);
-          read by resolve-round and update-scores.
+          read by resolveRound and updateScores.
       - id: winningWeapon
         type:
           kind: string
@@ -124,7 +124,7 @@ state:
         description: >-
           Piece ID of the winning weapon from the most recently resolved clash. Empty on a
           tie. Written by the chaincraft:trump mechanic alongside roundWinner; the player
-          winner is simply this weapon's owner. Read by resolve-round so the narration can
+          winner is simply this weapon's owner. Read by resolveRound so the narration can
           name and describe the victorious weapon.
       - id: gameWinner
         type:
@@ -132,7 +132,7 @@ state:
         default: ""
         description: >-
           Player ID of the overall game champion. Empty string while the game is in
-          progress. Set by update-scores when a player reaches roundsToWin victories. The
+          progress. Set by updateScores when a player reaches roundsToWin victories. The
           battle loop's endCondition checks this field.
           NOTE: This property is retained for the battle loop endCondition. Winner
           announcement uses game.winners (populated by the engine via winConditions.onVictory).
@@ -141,18 +141,18 @@ state:
           kind: boolean
         default: false
         description: >-
-          Set true by roll-reversal before each clash (25% probability). When true, the
+          Set true by rollReversal before each clash (25% probability). When true, the
           narration builds a fake-out moment of dramatic tension before revealing the real
           (already-determined) outcome. Reset to false after each round.
   player:
     properties:
       - id: roundsWon
         type:
-          kind: integer
+          kind: number
           min: 0
         default: 0
         description: >-
-          Cumulative clashes this player has won. Incremented by update-scores when
+          Cumulative clashes this player has won. Incremented by updateScores when
           roundWinner matches this player. The game ends when this reaches roundsToWin.
 
 effects:
@@ -161,7 +161,7 @@ effects:
     # Setup
     # ---------------------------------------------------------------------------
 
-    - id: deal-blank-weapons
+    - id: dealBlankWeapons
       kind: distribute
       from:
         inventory: "game:unassigned"
@@ -173,12 +173,12 @@ effects:
       count: 3
 
     # ---------------------------------------------------------------------------
-    # Weapon creation (one weapon per create-weapon submission)
+    # Weapon creation (one weapon per createWeapon submission)
     # The forge's TOP piece is always the blank currently being authored, because
-    # stow-weapon immediately moves each finished weapon to the arsenal.
+    # stowWeapon immediately moves each finished weapon to the arsenal.
     # ---------------------------------------------------------------------------
 
-    - id: set-weapon-description
+    - id: setWeaponDescription
       kind: update
       pieces:
         inventory: forge
@@ -187,7 +187,7 @@ effects:
       value:
         param: weaponDescription
 
-    - id: classify-weapon
+    - id: classifyWeapon
       kind: custom
       description: >-
         Read the top piece in the forge inventory's description property. Using
@@ -199,7 +199,7 @@ effects:
         two weapons in the same arsenal can share the same class, so pick the value 
         that most closely aligns and has not been used yet in this arsenal. 
 
-    - id: illustrate-weapon
+    - id: illustrateWeapon
       kind: generate-gamepiece-image
       pieces:
         inventory: forge
@@ -209,7 +209,7 @@ effects:
       source: description
       target: imageUrl
 
-    - id: stow-weapon
+    - id: stowWeapon
       kind: move
       from:
         inventory: forge
@@ -217,7 +217,7 @@ effects:
       to:
         inventory: arsenal
 
-    - id: confirm-weapon
+    - id: confirmWeapon
       kind: message
       to: actor
       template: >-
@@ -229,7 +229,7 @@ effects:
     # Ceremonies (LLM flavor)
     # ---------------------------------------------------------------------------
 
-    - id: generate-opening
+    - id: generateOpening
       kind: llm-effect
       prompt:
         rules:
@@ -247,14 +247,14 @@ effects:
             to: all
             visibility: public
 
-    - id: reveal-arsenals
+    - id: revealArsenals
       kind: reveal
       pieces:
         inventory: arsenal
         select: all
       to: all
 
-    - id: generate-arsenal-reveal
+    - id: generateArsenalReveal
       kind: llm-effect
       inputs:
         - name: arsenals
@@ -283,18 +283,18 @@ effects:
 
     # ---------------------------------------------------------------------------
     # Clash resolution
-    #   Order each round: reveal-arena -> roll-reversal -> trump resolve (writes
-    #   roundWinner) -> resolve-round (narrate) -> update-scores -> conceal/return.
+    #   Order each round: revealArena -> rollReversal -> trump resolve (writes
+    #   roundWinner) -> resolveRound (narrate) -> updateScores -> conceal/return.
     # ---------------------------------------------------------------------------
 
-    - id: reveal-arena
+    - id: revealArena
       kind: reveal
       pieces:
         inventory: arena
         select: all
       to: all
 
-    - id: roll-reversal
+    - id: rollReversal
       kind: set-random
       path: game.property.includeReversal
       source:
@@ -305,7 +305,7 @@ effects:
           - value: false
             weight: 0.75
 
-    - id: resolve-round
+    - id: resolveRound
       kind: llm-effect
       inputs:
         - name: roundWinner
@@ -342,7 +342,7 @@ effects:
             to: all
             visibility: public
 
-    - id: update-scores
+    - id: updateScores
       kind: custom
       description: >-
         If game.property.roundWinner is not empty, find the player whose ID matches
@@ -351,29 +351,29 @@ effects:
         game.property.gameWinner to game.property.roundWinner. If roundWinner is empty
         (tie), make no score changes.
 
-    - id: conceal-arena
+    - id: concealArena
       kind: hide
       pieces:
         inventory: arena
         select: all
 
-    - id: return-weapons
+    - id: returnWeapons
       kind: custom
       description: >-
         Move every weapon currently in the arena back to its owning player's arsenal
         inventory, so each player's arsenal is whole again for the next round.
 
-    - id: reset-round-winner
+    - id: resetRoundWinner
       kind: set-state
       path: game.property.roundWinner
       value: ""
 
-    - id: reset-winning-weapon
+    - id: resetWinningWeapon
       kind: set-state
       path: game.property.winningWeapon
       value: ""
 
-    - id: reset-reversal
+    - id: resetReversal
       kind: set-state
       path: game.property.includeReversal
       value: false
@@ -383,7 +383,7 @@ effects:
     # by the engine with the winning player IDs before this effect executes)
     # ---------------------------------------------------------------------------
 
-    - id: announce-victory
+    - id: announceVictory
       kind: llm-effect
       inputs:
         - name: winners
@@ -406,7 +406,7 @@ effects:
 
 actions:
   actions:
-    - id: create-weapon
+    - id: createWeapon
       label: Create Weapon
       description: >-
         Forge one absurd weapon for your arsenal. Each player creates exactly three weapons
@@ -421,13 +421,13 @@ actions:
             Must be a non-empty description of your weapon. Be creative — "stale toast",
             "existential dread", and "sentient spatula" are all valid weapons.
       effects:
-        - ref: set-weapon-description
-        - ref: classify-weapon
-        - ref: illustrate-weapon
-        - ref: stow-weapon
-        - ref: confirm-weapon
+        - ref: setWeaponDescription
+        - ref: classifyWeapon
+        - ref: illustrateWeapon
+        - ref: stowWeapon
+        - ref: confirmWeapon
 
-    - id: select-weapon
+    - id: selectWeapon
       label: Select Weapon
       description: >-
         Secretly send one weapon from your arsenal into the arena for this round's clash.
@@ -449,21 +449,18 @@ flow:
     kind: game
     hooks:
       onEnter:
-        - ref: deal-blank-weapons   # 3 blank weapons into each player's forge
-        - ref: generate-opening
+        - ref: dealBlankWeapons   # 3 blank weapons into each player's forge
+        - ref: generateOpening
     winConditions:
       - rule: condition
-        condition:
-          ">=":
-            - var: player.property.roundsWon
-            - var: game.property.roundsToWin
+        condition: "player.property.roundsWon >= game.property.roundsToWin"
         onVictory:
-          - ref: announce-victory
+          - ref: announceVictory
     children:
       - kind: simultaneous       # weapon creation — both players build arsenals concurrently
           # Completes when both players finish their repeat-3 grammar.
           # onComplete: reveal arsenals, then a dramatic public reveal ceremony.
-        id: weapon-creation
+        id: weaponCreation
         label: Weapon Creation
         actor: all-players
         grammar:
@@ -471,40 +468,37 @@ flow:
           count: 3
           body:
             kind: action
-            ref: create-weapon
+            ref: createWeapon
         hooks:
           onComplete:
-            - ref: reveal-arsenals
-            - ref: generate-arsenal-reveal
+            - ref: revealArsenals
+            - ref: generateArsenalReveal
 
       - kind: loop               # battle loop — clashes continue until someone wins
         id: battle
         label: Battle
-        endCondition:
-          "!=":
-            - var: game.property.gameWinner
-            - ""
+        endCondition: "game.property.gameWinner != ''"
         writeIterationTo: game.property.currentRound
         children:
           - kind: simultaneous   # weapon selection — both players pick secretly, simultaneously
-            id: weapon-selection
+            id: weaponSelection
             label: Weapon Selection
             actor: all-players
             grammar:
               kind: action
-              ref: select-weapon
+              ref: selectWeapon
             hooks:
               onComplete:
-                - ref: reveal-arena
-                - ref: roll-reversal
+                - ref: revealArena
+                - ref: rollReversal
                 - ref: "chaincraft:trump:resolve"   # writes game.property.roundWinner
-                - ref: resolve-round
-                - ref: update-scores
-                - ref: conceal-arena
-                - ref: return-weapons
-                - ref: reset-round-winner
-                - ref: reset-winning-weapon
-                - ref: reset-reversal
+                - ref: resolveRound
+                - ref: updateScores
+                - ref: concealArena
+                - ref: returnWeapons
+                - ref: resetRoundWinner
+                - ref: resetWinningWeapon
+                - ref: resetReversal
 
 mechanics:
   - kind: chaincraft:trump

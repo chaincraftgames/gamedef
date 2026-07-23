@@ -104,8 +104,6 @@
  */
 
 import { z } from "zod";
-import { JsonLogicSchema } from "#gamedef/modules/common.js";
-
 // ---------------------------------------------------------------------------
 // Trump rules (chained for tie-breaking; rank 0 = best)
 // ---------------------------------------------------------------------------
@@ -118,9 +116,9 @@ import { JsonLogicSchema } from "#gamedef/modules/common.js";
  * ```yaml
  * { kind: dominant, property: suit, dominantValue: spades }
  * ```
- * @example Trump declared dynamically (read from game state)
+ * @example Trump declared dynamically (state path string read at runtime)
  * ```yaml
- * { kind: dominant, property: suit, dominantValue: { var: "game.property.declaredTrump" } }
+ * { kind: dominant, property: suit, dominantValue: "game.property.declaredTrump" }
  * ```
  */
 export const DominantTrumpRuleSchema = z
@@ -133,11 +131,11 @@ export const DominantTrumpRuleSchema = z
           "Forward reference to a property declared on the pieces' gamepiece type.",
       ),
     dominantValue: z
-      .union([z.string(), z.number(), JsonLogicSchema])
+      .union([z.string(), z.number()])
       .describe(
         "The value that beats all other values of this property. " +
-          "Accepts a literal (e.g. 'spades', 1) or a JsonLogic expression reading game " +
-          "state (e.g. { var: 'game.property.declaredTrump' }) for dynamically declared trump. " +
+          "Accepts a literal (e.g. 'spades', 1) or a state path string " +
+          "(e.g. 'game.property.declaredTrump') for dynamically declared trump. " +
           "Pieces matching this value rank above all non-matching pieces; ties among matching " +
           "(or among non-matching) pieces fall through to the next rule in the chain.",
       ),
