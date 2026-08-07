@@ -110,12 +110,12 @@ describe("Reference resolution", () => {
     expect(result.errors.some((e) => e.message.includes("ghost-type"))).toBe(true);
   });
 
-  it("errors when trump evaluationInventory not in inventories", () => {
+  it("errors when dominant-gamepiece evaluationInventory not in inventories", () => {
     const result = validate(
       minimalSpec({
         mechanics: [
           {
-            kind: "chaincraft:trump",
+            kind: "chaincraft:dominant-gamepiece",
             evaluationInventory: "nonexistent-pile",
             winnerToState: "game.property.roundWinner",
             rules: [
@@ -133,13 +133,13 @@ describe("Reference resolution", () => {
     expect(result.errors.some((e) => e.message.includes("nonexistent-pile"))).toBe(true);
   });
 
-  it("passes when trump evaluationInventory exists", () => {
+  it("passes when dominant-gamepiece evaluationInventory exists", () => {
     const result = validate(
       minimalSpec({
         inventories: { types: [makeInventory("trick-pile")] },
         mechanics: [
           {
-            kind: "chaincraft:trump",
+            kind: "chaincraft:dominant-gamepiece",
             suitProperty: "suit",
             rankProperty: "rank",
             rankOrder: ["2", "3", "A"],
@@ -148,8 +148,8 @@ describe("Reference resolution", () => {
         ],
       }),
     );
-    const trumpErrors = result.errors.filter((e) => e.path.includes("evaluationInventory"));
-    expect(trumpErrors).toHaveLength(0);
+    const dominantGamepieceErrors = result.errors.filter((e) => e.path.includes("evaluationInventory"));
+    expect(dominantGamepieceErrors).toHaveLength(0);
   });
 });
 

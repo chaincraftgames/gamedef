@@ -107,7 +107,7 @@ export const ModularGameSpecSchema = z
       .array(GameMechanicSchema)
       .optional()
       .describe(
-        "Game-level mechanic declarations (score tracks, trump evaluation, etc.). " +
+        "Game-level mechanic declarations (score tracks, dominant-gamepiece evaluation, etc.). " +
           "Each mechanic synthesizes inventories, effects, and/or flow wiring from a compact config.",
       ),
   })

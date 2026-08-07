@@ -9,7 +9,7 @@
  *   - actions: effect refs must resolve to an ID in effects module
  *   - flow: availableActions refs must resolve to an ID in actions module
  *   - mechanics: charges.action must resolve to an ID in actions module
- *   - mechanics: trump.evaluationInventory must resolve to an ID in inventories module
+ *   - mechanics: dominantGamepiece.evaluationInventory must resolve to an ID in inventories module
  *   - catalog: typeId must resolve to an ID in gamepieceTypes module
  *
  *   Pass 2 — Duplicate ID detection
@@ -89,7 +89,7 @@ export function validateReferences(spec: ModularGameSpec): ValidationError[] {
 
   // mechanics: cross-module refs
   spec.mechanics?.forEach((mechanic, mi) => {
-    if (mechanic.kind === "chaincraft:trump") {
+    if (mechanic.kind === "chaincraft:dominant-gamepiece") {
       if (!inventoryIds.has(mechanic.evaluationInventory)) {
         errors.push({
           path: `mechanics[${mi}].evaluationInventory`,
@@ -100,7 +100,7 @@ export function validateReferences(spec: ModularGameSpec): ValidationError[] {
         errors.push({
           path: `mechanics[${mi}]`,
           message:
-            "chaincraft:trump requires at least one of 'winnerToState' or 'winningPieceToState'",
+            "chaincraft:dominant-gamepiece requires at least one of 'winnerToState' or 'winningPieceToState'",
         });
       }
     }

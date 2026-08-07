@@ -11,7 +11,7 @@ metadata:
 #                   LLM (classify effect), then frozen for the whole game
 #   - imageUrl    : generated artwork (generate-image effect; no-op in text-only engines)
 #
-# Clash resolution is fully DETERMINISTIC: the chaincraft:trump mechanic compares the two
+# Clash resolution is fully DETERMINISTIC: the chaincraft:dominant-gamepiece mechanic compares the two
 # selected weapons by their hidden `rps` class (matrix rule) and writes the winner to
 # state. The LLM is used only for flavor — opening, arsenal reveal, clash narration, and
 # the victory ceremony. This split keeps the RPS rules unit-testable with no LLM mocking
@@ -46,7 +46,7 @@ gamepieceTypes:
           description: >-
             Hidden Rock/Paper/Scissors classification assigned by classifyWeapon at
             creation. Never shown to any player. Frozen for the game and read by the
-            chaincraft:trump mechanic to resolve each clash deterministically.
+            chaincraft:dominant-gamepiece mechanic to resolve each clash deterministically.
         - id: imageUrl
           label: Artwork
           type:
@@ -87,7 +87,7 @@ inventories:
       description: >-
         The battlefield. Both players secretly move their selected weapon here each round
         (count-only keeps the choice hidden until both have committed). revealArena makes
-        them public for resolution; the trump mechanic compares them and they return home.
+        them public for resolution; the dominant-gamepiece mechanic compares them and they return home.
 
 state:
   game:
@@ -115,7 +115,7 @@ state:
         description: >-
           Player ID of the winner of the most recently resolved clash. Empty string means
           a tie (both weapons shared the same Rock/Paper/Scissors class). Written by the
-          chaincraft:trump mechanic's resolve effect (the owner of the winning weapon);
+          chaincraft:dominant-gamepiece mechanic's resolve effect (the owner of the winning weapon);
           read by resolveRound and updateScores.
       - id: winningWeapon
         type:
@@ -123,7 +123,7 @@ state:
         default: ""
         description: >-
           Piece ID of the winning weapon from the most recently resolved clash. Empty on a
-          tie. Written by the chaincraft:trump mechanic alongside roundWinner; the player
+          tie. Written by the chaincraft:dominant-gamepiece mechanic alongside roundWinner; the player
           winner is simply this weapon's owner. Read by resolveRound so the narration can
           name and describe the victorious weapon.
       - id: gameWinner
@@ -283,7 +283,7 @@ effects:
 
     # ---------------------------------------------------------------------------
     # Clash resolution
-    #   Order each round: revealArena -> rollReversal -> trump resolve (writes
+    #   Order each round: revealArena -> rollReversal -> dominant-gamepiece resolve (writes
     #   roundWinner) -> resolveRound (narrate) -> updateScores -> conceal/return.
     # ---------------------------------------------------------------------------
 
@@ -331,7 +331,7 @@ effects:
             the real outcome lands — the crowd thinks one player won, then the truth hits"
           - "Over-the-top announcer energy; 2-4 sentences"
         computation: >-
-          The two selected weapons are in {{arenaWeapons}} and the trump mechanic has already
+          The two selected weapons are in {{arenaWeapons}} and the dominant-gamepiece mechanic has already
           set {{roundWinner}} (the winning player) and {{winningWeapon}} (the victorious
           weapon piece). Narrate the clash dramatically, consistent with that result
           (empty = tie), giving the winning weapon top billing. Put the narration in
@@ -491,7 +491,7 @@ flow:
               onComplete:
                 - ref: revealArena
                 - ref: rollReversal
-                - ref: "chaincraft:trump:resolve"   # writes game.property.roundWinner
+                - ref: "chaincraft:dominant-gamepiece:resolve"   # writes game.property.roundWinner
                 - ref: resolveRound
                 - ref: updateScores
                 - ref: concealArena
@@ -501,7 +501,7 @@ flow:
                 - ref: resetReversal
 
 mechanics:
-  - kind: chaincraft:trump
+  - kind: chaincraft:dominant-gamepiece
     label: Weapon Clash
     evaluationInventory: arena
     winnerToState: game.property.roundWinner

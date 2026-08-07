@@ -43,7 +43,7 @@ import { validate } from "@chaincraft/gamedef/validator";
 | `actions` | Player-facing actions — inputs, preconditions, effect sequences |
 | `flow` | Game structural skeleton — loop/turn/simultaneous nodes, hooks, interrupts |
 | `catalog` | Piece registry — declares piece instances and initial property values |
-| `mechanics` | Game-level mechanic declarations (score tracks, trump evaluation, etc.) |
+| `mechanics` | Game-level mechanic declarations (score tracks, dominant-gamepiece evaluation, etc.) |
 
 ### System inventories
 
@@ -69,7 +69,7 @@ each mechanic `kind` injects; spec authors only provide configuration values.
 | Kind | Purpose |
 |------|---------|
 | `chaincraft:score-track` | Player/team score tracking on a line inventory |
-| `chaincraft:trump` | Who-beats-whom resolution: trump suits, highest-wins, and Rock-Paper-Scissors |
+| `chaincraft:dominant-gamepiece` | Who-beats-whom resolution: dominant-gamepiece suits, highest-wins, and Rock-Paper-Scissors |
 
 See `src/mechanics/WISHLIST.md` for mechanics in design.
 
@@ -140,7 +140,7 @@ src/
     charges.ts
     conversion.ts
     score-track.ts
-    trump.ts
+    dominant-gamepiece.ts
     WISHLIST.md         # mechanics in design / on the roadmap
   validator/
     index.ts            # validate(raw) → ValidationResult; VALIDATORS list

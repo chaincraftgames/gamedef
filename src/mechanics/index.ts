@@ -29,13 +29,13 @@ export { ScoreTrackMechanicSchema } from "./score-track.js";
 export type { ScoreTrackMechanic } from "./score-track.js";
 
 export {
-  TrumpMechanicSchema,
-  TrumpRuleSchema,
-  DominantTrumpRuleSchema,
-  ComparisonTrumpRuleSchema,
-  MatrixTrumpRuleSchema,
-} from "./trump.js";
-export type { TrumpMechanic, TrumpRule } from "./trump.js";
+  DominantGamepieceMechanicSchema,
+  DominantGamepieceRuleSchema,
+  DominantRuleSchema,
+  ComparisonRuleSchema,
+  MatrixRuleSchema,
+} from "./dominant-gamepiece.js";
+export type { DominantGamepieceMechanic, DominantGamepieceRule } from "./dominant-gamepiece.js";
 
 // ---------------------------------------------------------------------------
 // Union schemas
@@ -45,7 +45,7 @@ import { z } from "zod";
 import { ChargesMechanicSchema } from "./charges.js";
 import { ConversionMechanicSchema } from "./conversion.js";
 import { ScoreTrackMechanicSchema } from "./score-track.js";
-import { TrumpMechanicSchema } from "./trump.js";
+import { DominantGamepieceMechanicSchema } from "./dominant-gamepiece.js";
 
 /**
  * All piece-scoped mechanic kinds. Declared in `mechanics[]` on a GamepieceType.
@@ -68,7 +68,7 @@ export const PieceMechanicSchema = z
  * from a compact declaration.
  */
 export const GameMechanicSchema = z
-  .discriminatedUnion("kind", [ScoreTrackMechanicSchema, TrumpMechanicSchema])
+  .discriminatedUnion("kind", [ScoreTrackMechanicSchema, DominantGamepieceMechanicSchema])
   .describe(
     "A game-level mechanic declaration. " +
       "Game mechanics add behavioral overlays to the game structure — scoring, " +

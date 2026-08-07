@@ -7,7 +7,7 @@
  *
  * Rules:
  *   - actions[*].effects[*].ref        → must exist in effects.effects[*].id
- *   - mechanics[*] (trump).evaluationInventory → must exist in inventories.types[*].id
+ *   - mechanics[*] (dominantGamepiece).evaluationInventory → must exist in inventories.types[*].id
  *   - gamepieceTypes[*].mechanics[*] (charges).action → must exist in actions.actions[*].id
  *   - gamepieceTypes[*].mechanics[*].availableInSubflows[*] → must exist as a flow node ID
  *   - catalog.entries[*].typeId        → must exist in gamepieceTypes.types[*].id
@@ -58,9 +58,9 @@ export class ResolveRefsValidator implements SpecValidator {
       });
     });
 
-    // mechanics: trump.evaluationInventory must exist in inventories
+    // mechanics: dominantGamepiece.evaluationInventory must exist in inventories
     spec.mechanics?.forEach((mechanic, mi) => {
-      if (mechanic.kind === "chaincraft:trump") {
+      if (mechanic.kind === "chaincraft:dominant-gamepiece") {
         if (!inventoryIds.has(mechanic.evaluationInventory)) {
           errors.push({
             path: `mechanics[${mi}].evaluationInventory`,
@@ -71,7 +71,7 @@ export class ResolveRefsValidator implements SpecValidator {
           errors.push({
             path: `mechanics[${mi}]`,
             message:
-              "chaincraft:trump requires at least one of 'winnerToState' or 'winningPieceToState'",
+              "chaincraft:dominant-gamepiece requires at least one of 'winnerToState' or 'winningPieceToState'",
           });
         }
       }

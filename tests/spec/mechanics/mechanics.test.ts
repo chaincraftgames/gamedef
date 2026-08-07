@@ -5,7 +5,7 @@
  *   - ChargesMechanicSchema (piece-level)
  *   - ConversionMechanicSchema (piece-level)
  *   - ScoreTrackMechanicSchema (game-level)
- *   - TrumpMechanicSchema (game-level)
+ *   - DominantGamepieceMechanicSchema (game-level)
  *   - PieceMechanicSchema union
  *   - GameMechanicSchema union
  */
@@ -14,7 +14,7 @@ import {
   ChargesMechanicSchema,
   ConversionMechanicSchema,
   ScoreTrackMechanicSchema,
-  TrumpMechanicSchema,
+  DominantGamepieceMechanicSchema,
   PieceMechanicSchema,
   GameMechanicSchema,
 } from "#gamedef/mechanics/index.js";
@@ -34,8 +34,8 @@ function okScoreTrack(data: unknown) {
   if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
   return r.data;
 }
-function okTrump(data: unknown) {
-  const r = TrumpMechanicSchema.safeParse(data);
+function okDominantGamepiece(data: unknown) {
+  const r = DominantGamepieceMechanicSchema.safeParse(data);
   if (!r.success) throw new Error(JSON.stringify(r.error.format(), null, 2));
   return r.data;
 }
@@ -223,12 +223,12 @@ describe("ScoreTrackMechanicSchema", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TrumpMechanicSchema
+// DominantGamepieceMechanicSchema
 // ---------------------------------------------------------------------------
 
-describe("TrumpMechanicSchema", () => {
+describe("DominantGamepieceMechanicSchema", () => {
   const base = {
-    kind: "chaincraft:trump",
+    kind: "chaincraft:dominant-gamepiece",
     evaluationInventory: "arena",
     winnerToState: "game.property.roundWinner",
     rules: [
@@ -240,16 +240,16 @@ describe("TrumpMechanicSchema", () => {
     ],
   };
 
-  it("parses minimal matrix (RPS) trump mechanic", () => {
-    const r = okTrump(base);
-    expect(r.kind).toBe("chaincraft:trump");
+  it("parses minimal matrix (RPS) dominant-gamepiece mechanic", () => {
+    const r = okDominantGamepiece(base);
+    expect(r.kind).toBe("chaincraft:dominant-gamepiece");
     expect(r.evaluationInventory).toBe("arena");
     expect(r.winnerToState).toBe("game.property.roundWinner");
     expect(r.rules).toHaveLength(1);
   });
 
   it("accepts a chained dominant + comparison rule set (trick-taking)", () => {
-    const r = okTrump({
+    const r = okDominantGamepiece({
       ...base,
       rules: [
         { kind: "dominant", property: "suit", dominantValue: "spades" },
@@ -265,29 +265,29 @@ describe("TrumpMechanicSchema", () => {
   });
 
   it("accepts a dynamic dominant value via JsonLogic", () => {
-    const r = okTrump({
+    const r = okDominantGamepiece({
       ...base,
       rules: [
-        { kind: "dominant", property: "suit", dominantValue: { var: "game.property.declaredTrump" } },
+        { kind: "dominant", property: "suit", dominantValue: { var: "game.property.declaredDominant" } },
       ],
     });
     expect(r.rules[0]).toMatchObject({ kind: "dominant" });
   });
 
   it("accepts winningPieceToState alongside winnerToState", () => {
-    const r = okTrump({ ...base, winningPieceToState: "game.property.winningWeapon" });
+    const r = okDominantGamepiece({ ...base, winningPieceToState: "game.property.winningWeapon" });
     expect(r.winningPieceToState).toBe("game.property.winningWeapon");
   });
 
   it("accepts winningPieceToState without winnerToState", () => {
     const { winnerToState: _w, ...noWinner } = base;
-    const r = okTrump({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
+    const r = okDominantGamepiece({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
     expect(r.winnerToState).toBeUndefined();
     expect(r.winningPieceToState).toBe("game.property.winningWeapon");
   });
 
   it("defaults comparison direction to highest", () => {
-    const r = okTrump({
+    const r = okDominantGamepiece({
       ...base,
       rules: [{ kind: "comparison", property: "power" }],
     });
@@ -295,18 +295,18 @@ describe("TrumpMechanicSchema", () => {
   });
 
   it("rejects an empty rules list", () => {
-    fail(TrumpMechanicSchema, { ...base, rules: [] });
+    fail(DominantGamepieceMechanicSchema, { ...base, rules: [] });
   });
 
   it("allows omitting winnerToState at the schema level (validator enforces at-least-one)", () => {
     const { winnerToState: _w, ...noWinner } = base;
-    const r = okTrump({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
+    const r = okDominantGamepiece({ ...noWinner, winningPieceToState: "game.property.winningWeapon" });
     expect(r.winnerToState).toBeUndefined();
   });
 
   it("rejects missing evaluationInventory", () => {
     const { evaluationInventory: _, ...noInv } = base;
-    fail(TrumpMechanicSchema, noInv);
+    fail(DominantGamepieceMechanicSchema, noInv);
   });
 });
 
@@ -359,9 +359,9 @@ describe("GameMechanicSchema (union)", () => {
     expect(r.kind).toBe("chaincraft:score-track");
   });
 
-  it("dispatches chaincraft:trump", () => {
+  it("dispatches chaincraft:dominant-gamepiece", () => {
     const r = GameMechanicSchema.parse({
-      kind: "chaincraft:trump",
+      kind: "chaincraft:dominant-gamepiece",
       evaluationInventory: "arena",
       winnerToState: "game.property.roundWinner",
       rules: [
@@ -372,7 +372,7 @@ describe("GameMechanicSchema (union)", () => {
         },
       ],
     });
-    expect(r.kind).toBe("chaincraft:trump");
+    expect(r.kind).toBe("chaincraft:dominant-gamepiece");
   });
 
   it("rejects unknown kind", () => {

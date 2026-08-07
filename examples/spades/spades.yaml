@@ -79,7 +79,7 @@ components:
   - type: property_set
     id: game_state
     properties:
-      trump_card: 
+      dominant_card: 
         type: object
         default_value: null
 
@@ -117,22 +117,22 @@ components:
             $output: { $inventory_ref: team_tricks_taken }
 
   - type: mechanic
-    id: trump
-    mechanic: trump
+    id: dominant-gamepiece
+    mechanic: dominant-gamepiece
     properties:
       $inventory: { $inventory_ref: played_cards }
-      trump_properties:
+      dominant-gamepiece_properties:
         - $property: { $component_ref: card_properties, $property_ref: suit }
           value: spade
         - $property: { $component_ref: card_properties, $property_ref: rank }
           order: ascending
-      $trump_output: { $component_ref: game_state, $property_ref: trump_card }
+      $dominant-gamepiece_output: { $component_ref: game_state, $property_ref: dominant-gamepiece_card }
           
   - type: mechanic
     id: trick
     mechanic: trick
     properties:
-      $trump_property: { $component_ref: game_state, $property_ref: trump_card }
+      $dominant-gamepiece_property: { $component_ref: game_state, $property_ref: dominant-gamepiece_card }
       $played_inventory: { $inventory_ref: played_cards }
       $tricks_taken_inventory: { $inventory_ref: player_tricks_taken }
 
@@ -218,7 +218,7 @@ game:
     - { $component_ref: played_cards }
     - { $component_ref: team }
     - { $component_ref: deal_inventory }
-    - { $component_ref: trump }
+    - { $component_ref: dominant-gamepiece }
     - { $component_ref: trick }
    
 flow:

@@ -743,7 +743,7 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
 
 // TypeScript type (needed for recursive z.ZodType annotation above)
 export type FlowNode =
-  | { kind: "loop"; id?: string; label?: string; count?: number; endCondition?: unknown; finalRound?: boolean; children: FlowNode[]; interruptWindows?: unknown[]; hooks?: _FlowHooks }
+  | { kind: "loop"; id?: string; label?: string; count?: number; endCondition?: unknown; finalRound?: boolean; writeIterationTo?: string; children: FlowNode[]; interruptWindows?: unknown[]; hooks?: _FlowHooks }
   | { kind: "turn"; id?: string; label?: string; actor: ActorSpec; turnOrder?: TurnOrder; grammar: TurnGrammarNode; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks }
   | { kind: "simultaneous"; id?: string; label?: string; actor: ActorSpec; grammar: TurnGrammarNode; endCondition?: unknown; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks };
 

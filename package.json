@@ -20,7 +20,7 @@
   ],
   "imports": {
     "#gamedef/*": {
-      "default": "./src/*.js"
+      "default": "./dist/*"
     }
   },
   "scripts": {

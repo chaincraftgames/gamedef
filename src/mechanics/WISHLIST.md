@@ -134,27 +134,27 @@ Examples: Catan victory points, Ticket to Ride score track, Wingspan egg track.
 
 ---
 
-### `chaincraft:trump`
-**Status**: Schema to be written (`mechanics/trump.ts`)
+### `chaincraft:dominant-gamepiece`
+**Status**: Schema to be written (`mechanics/dominant-gamepiece.ts`)
 
-Evaluates trump suit in trick-taking games. The mechanic references an existing
+Evaluates dominant suit in trick-taking games. The mechanic references an existing
 inventory (must be declared in inventories module) because flow conditions and
 actions also reference it.
 
 Key config:
 - `suitProperty` — property on card pieces that holds the suit value
 - `rankProperty` — property on card pieces that holds the rank/value
-- `trumpSuit` — literal suit string OR a JsonLogic expression (e.g. `{ var: "game.property.trumpSuit" }`)
+- `dominantSuit` — literal suit string OR a JsonLogic expression (e.g. `{ var: "game.property.dominantSuit" }`)
 - `evaluationInventory` — inventory ID containing the cards being evaluated (trick pile)
 
 Synthesizes: comparison logic for trick resolution, exposes a `resolve-trick` effect.
 
 Notes:
-- Trump suit can be dynamic (set by a bid or by cutting the deck) — use JsonLogic var.
-- No-trump mode: omit `trumpSuit` or set to `null`.
+- Dominant suit can be dynamic (set by a bid or by cutting the deck) — use JsonLogic var.
+- No-dominant mode: omit `dominantSuit` or set to `null`.
 
-Examples: Hearts (no trump), Spades (spades always trump), Euchre (declared trump),
-Bridge (bid determines trump).
+Examples: Hearts (no dominant), Spades (spades always dominant), Euchre (declared dominant),
+Bridge (bid determines dominant).
 
 ---
 

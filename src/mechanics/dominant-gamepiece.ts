@@ -1,10 +1,10 @@
 /**
- * Mechanic: chaincraft:trump
+ * Mechanic: chaincraft:dominant-gamepiece
  * Scope: game-level
  *
  * Determines hierarchical (who-beats-whom) relationships between gamepieces in an
  * inventory and resolves an overall winner. A general comparison engine — it powers
- * trick-taking trump suits, "highest value wins" showdowns, and cyclic matchups like
+ * trick-taking dominant gamepiece suits, "highest value wins" showdowns, and cyclic matchups like
  * Rock-Paper-Scissors.
  *
  * ## How it works
@@ -18,25 +18,25 @@
  * If two or more pieces tie at rank 0 (no rule breaks the tie), the result is a draw and
  * `winnerToState` receives an empty string.
  *
- * ## Rule types (mirrors the engine's trump rule kinds)
+ * ## Rule types (mirrors the engine's dominant-gamepiece rule kinds)
  *
- *   dominant   — one specific value beats everything else (e.g. trump suit, Ace-high).
+ *   dominant   — one specific value beats everything else (e.g. dominant gamepiece suit, Ace-high).
  *                The dominant value may be literal or a JsonLogic expression reading
- *                game state (e.g. the dynamically declared trump suit).
+ *                game state (e.g. the dynamically declared dominant gamepiece suit).
  *   comparison — order pieces along an ordinal scale (e.g. card rank, weapon power).
  *                Highest or lowest wins.
  *   matrix     — cyclic / non-transitive relationships defined by explicit beats-lists
  *                (e.g. Rock beats Scissors, Scissors beats Paper, Paper beats Rock).
  *
- * Chain rules for tie-breaking, e.g. trick-taking = [dominant trump] → [dominant leading
+ * Chain rules for tie-breaking, e.g. trick-taking = [dominant dominant gamepiece] → [dominant leading
  * suit] → [comparison rank highest].
  *
  * ## Integration
  *
  * ### Exposes
  *   Effects (by ref):
- *     { ref: "chaincraft:trump:resolve" }            (single trump mechanic)
- *     { ref: "chaincraft:trump:<id>:resolve" }       (when an id is set)
+ *     { ref: "chaincraft:dominant-gamepiece:resolve" }            (single dominant gamepiece mechanic)
+ *     { ref: "chaincraft:dominant-gamepiece:<id>:resolve" }       (when an id is set)
  *     Evaluates `evaluationInventory`, applies the rule chain, and writes the winning
  *     piece's owner to `winnerToState` (empty string on a draw). Call from flow hooks
  *     (e.g. a round's onComplete) or actions.
@@ -48,11 +48,11 @@
  *
  * ### Configuration
  *   Required: evaluationInventory, rules (>= 1), winnerToState
- *   Optional: id (required if >1 trump mechanic), label
+ *   Optional: id (required if >1 dominant gamepiece mechanic), label
  *
  * @example Rock-Paper-Scissors (Absurd Armaments — weapons carry a hidden `rps` property)
  * ```yaml
- * kind: chaincraft:trump
+ * kind: chaincraft:dominant-gamepiece
  * evaluationInventory: arena
  * winnerToState: game.property.roundWinner
  * rules:
@@ -63,9 +63,9 @@
  *       paper: [rock]
  *       scissors: [paper]
  * ```
- * @example Spades (trump suit beats all; ties broken by rank)
+ * @example Spades (dominant suit beats all; ties broken by rank)
  * ```yaml
- * kind: chaincraft:trump
+ * kind: chaincraft:dominant-gamepiece
  * evaluationInventory: trick-pile
  * winnerToState: game.property.trickWinner
  * rules:
@@ -77,23 +77,23 @@
  *     order: [2, 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A]
  *     direction: highest
  * ```
- * @example Euchre (trump declared during bidding — read dynamically from game state)
+ * @example Euchre (dominant declared during bidding — read dynamically from game state)
  * ```yaml
- * kind: chaincraft:trump
+ * kind: chaincraft:dominant-gamepiece
  * evaluationInventory: trick-pile
  * winnerToState: game.property.trickWinner
  * rules:
  *   - kind: dominant
  *     property: suit
- *     dominantValue: { var: "game.property.declaredTrump" }
+ *     dominantValue: { var: "game.property.declaredDominant" }
  *   - kind: comparison
  *     property: rank
  *     order: [9, 10, J, Q, K, A]
  *     direction: highest
  * ```
- * @example Highest value wins (simple showdown, no trump)
+ * @example Highest value wins (simple showdown, no dominant)
  * ```yaml
- * kind: chaincraft:trump
+ * kind: chaincraft:dominant-gamepiece
  * evaluationInventory: showdown
  * winnerToState: game.property.roundWinner
  * rules:
@@ -105,23 +105,23 @@
 
 import { z } from "zod";
 // ---------------------------------------------------------------------------
-// Trump rules (chained for tie-breaking; rank 0 = best)
+// Dominant rules (chained for tie-breaking; rank 0 = best)
 // ---------------------------------------------------------------------------
 
 /**
  * A single value beats all other values for the named property.
- * Use for trump suits and "this type always wins" relationships.
+ * Use for dominant suits and "this type always wins" relationships.
  *
- * @example Spades always trump
+ * @example Spades always dominant
  * ```yaml
  * { kind: dominant, property: suit, dominantValue: spades }
  * ```
- * @example Trump declared dynamically (state path string read at runtime)
+ * @example Dominant declared dynamically (state path string read at runtime)
  * ```yaml
- * { kind: dominant, property: suit, dominantValue: "game.property.declaredTrump" }
+ * { kind: dominant, property: suit, dominantValue: "game.property.declaredDominant" }
  * ```
  */
-export const DominantTrumpRuleSchema = z
+export const DominantRuleSchema = z
   .object({
     kind: z.literal("dominant"),
     property: z
@@ -135,14 +135,14 @@ export const DominantTrumpRuleSchema = z
       .describe(
         "The value that beats all other values of this property. " +
           "Accepts a literal (e.g. 'spades', 1) or a state path string " +
-          "(e.g. 'game.property.declaredTrump') for dynamically declared trump. " +
+          "(e.g. 'game.property.declaredDominant') for dynamically declared dominant-gamepiece. " +
           "Pieces matching this value rank above all non-matching pieces; ties among matching " +
           "(or among non-matching) pieces fall through to the next rule in the chain.",
       ),
   })
   .describe(
     "Dominant-value rule: pieces whose property equals dominantValue beat all others. " +
-      "Use for trump suits and single-dominant-type relationships.",
+      "Use for dominant suits and single-dominant-type relationships.",
   );
 
 /**
@@ -158,7 +158,7 @@ export const DominantTrumpRuleSchema = z
  * { kind: comparison, property: power, direction: lowest }
  * ```
  */
-export const ComparisonTrumpRuleSchema = z
+export const ComparisonRuleSchema = z
   .object({
     kind: z.literal("comparison"),
     property: z
@@ -214,7 +214,7 @@ export const ComparisonTrumpRuleSchema = z
  *   spock: [rock, scissors]
  * ```
  */
-export const MatrixTrumpRuleSchema = z
+export const MatrixRuleSchema = z
   .object({
     kind: z.literal("matrix"),
     property: z
@@ -240,35 +240,35 @@ export const MatrixTrumpRuleSchema = z
       "Declared as a beats-map rather than a raw matrix to keep it readable and authorable.",
   );
 
-export const TrumpRuleSchema = z
+export const DominantGamepieceRuleSchema = z
   .discriminatedUnion("kind", [
-    DominantTrumpRuleSchema,
-    ComparisonTrumpRuleSchema,
-    MatrixTrumpRuleSchema,
+    DominantRuleSchema,
+    ComparisonRuleSchema,
+    MatrixRuleSchema,
   ])
   .describe(
-    "One rule in a trump chain. Applied in order; each rule breaks ties left by the " +
+    "One rule in a dominant chain. Applied in order; each rule breaks ties left by the " +
       "previous one. Rank 0 = best. Kinds: 'dominant' (one value beats all), " +
       "'comparison' (ordinal high/low), 'matrix' (cyclic RPS-style relationships).",
   );
 
-export type TrumpRule = z.infer<typeof TrumpRuleSchema>;
+export type DominantGamepieceRule = z.infer<typeof DominantGamepieceRuleSchema>;
 
 // ---------------------------------------------------------------------------
-// Trump mechanic
+// Dominant mechanic
 // ---------------------------------------------------------------------------
 
-export const TrumpMechanicSchema = z
+export const DominantGamepieceMechanicSchema = z
   .object({
-    kind: z.literal("chaincraft:trump"),
+    kind: z.literal("chaincraft:dominant-gamepiece"),
     id: z
       .string()
       .optional()
       .describe(
-        "Mechanic instance ID. Required when the game has more than one trump mechanic. " +
-          "Disambiguates the generated resolve effect ref: 'chaincraft:trump:<id>:resolve'. " +
-          "Omit when there is exactly one trump mechanic " +
-          "(ref is then 'chaincraft:trump:resolve').",
+        "Mechanic instance ID. Required when the game has more than one dominant-gamepiece mechanic. " +
+          "Disambiguates the generated resolve effect ref: 'chaincraft:dominant-gamepiece:<id>:resolve'. " +
+          "Omit when there is exactly one dominant-gamepiece mechanic " +
+          "(ref is then 'chaincraft:dominant-gamepiece:resolve').",
       ),
     label: z
       .string()
@@ -282,13 +282,13 @@ export const TrumpMechanicSchema = z
           "by flow conditions. Typically a game-scoped inventory (e.g. 'arena', 'trick-pile').",
       ),
     rules: z
-      .array(TrumpRuleSchema)
+      .array(DominantGamepieceRuleSchema)
       .min(1)
       .describe(
         "Ordered list of comparison rules. The first rule ranks all pieces; each later " +
           "rule breaks ties within the groups the previous rules produced. Provide a single " +
           "rule for simple comparisons (RPS, highest-wins) or chain several for trick-taking " +
-          "(trump → leading suit → rank).",
+          "(dominant-gamepiece → leading suit → rank).",
       ),
     winnerToState: z
       .string()
@@ -319,9 +319,9 @@ export const TrumpMechanicSchema = z
       "Exposes a 'resolve' effect callable from flow hooks and actions. The mechanic " +
       "identifies the winning PIECE; the winning PLAYER is derived as that piece's owner. " +
       "Writes the winning piece's ID to 'winningPieceToState' and/or its owner's ID to " +
-      "'winnerToState' (provide at least one). Supports dominant-value (trump suit), ordinal " +
+      "'winnerToState' (provide at least one). Supports dominant-value (dominant suit), ordinal " +
       "comparison (highest/lowest), and matrix (Rock-Paper-Scissors) relationships, chained " +
       "for tie-breaking.",
   );
 
-export type TrumpMechanic = z.infer<typeof TrumpMechanicSchema>;
+export type DominantGamepieceMechanic = z.infer<typeof DominantGamepieceMechanicSchema>;

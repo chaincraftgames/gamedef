@@ -290,6 +290,41 @@ export const DistributeTargetSchema = z
   .describe("Target for distribute effects. Always deals to all players, optionally filtered by role.");
 
 // ---------------------------------------------------------------------------
+// Piece reference (source piece for value resolution)
+// ---------------------------------------------------------------------------
+
+/**
+ * A reference to a single gamepiece, used to establish source context for
+ * value resolution. Allows effects to read the source piece's properties
+ * via `source.property.<id>` var paths.
+ *
+ * @example Reference a piece selected by the player as action input
+ * ```yaml
+ * source: { param: attacker }
+ * ```
+ * @example Reference a specific piece by literal ID
+ * ```yaml
+ * source: { id: hero-piece }
+ * ```
+ */
+export const PieceRefSchema = z
+  .union([
+    z.object({
+      param: z.string().describe(
+        "Resolve the piece ID from an action input by matching this id. " +
+          "The input should be a gamepiece-select type that yields a single piece ID.",
+      ),
+    }),
+    z.object({
+      id: z.string().describe("A literal gamepiece ID."),
+    }),
+  ])
+  .describe(
+    "Reference to a single gamepiece. Used by the `source` field on update and set-state " +
+      "effects to establish which piece's properties are available via source.property.<id> var paths.",
+  );
+
+// ---------------------------------------------------------------------------
 // Shared numeric operator schemas (used by PropertyValue and adjust)
 // ---------------------------------------------------------------------------
 
@@ -348,6 +383,8 @@ export const MultSchema = z
  * value: { delta: { var: "game.property.spellPower" } }  # delta from state variable
  * value: { delta: { var: "player.property.damageDealt", negate: true } }  # subtract a value
  * value: { mult: { var: "player.property.workerCount" } }  # scale by state variable
+ * value: { delta: { var: "source.property.attack", negate: true } }  # subtract source piece's attack
+ * value: { var: "target.property.defense" }  # read from current target piece
  * ```
  */
 export const PropertyValueSchema = z
@@ -379,7 +416,18 @@ export const PropertyValueSchema = z
       .describe(
         "Set this property to the value of another state property. Use a dot-path: " +
           "'game.property.<id>', 'player.property.<id>', 'game.inventory.<id>.count', " +
-          "'player.inventory.<id>.count'. Resolved at effect execution time.",
+          "'player.inventory.<id>.count', 'source.property.<id>' (requires a source field), " +
+          "'target.property.<id>' (available in update effects — refers to the current target piece). " +
+          "Resolved at effect execution time.",
+      ),
+    z
+      .object({ expr: z.string() })
+      .describe(
+        "Compute this value from an infix expression evaluated at effect execution time. " +
+          "Supports arithmetic (+, -, *, /), comparisons, boolean operators, and " +
+          "dot-path state references (game.property.x, actor.property.y, etc.). " +
+          "Example: 'actor.property.attack - target.property.defense'. " +
+          "Supersedes var/delta/mult for complex computations.",
       ),
   ])
   .describe(
@@ -502,10 +550,23 @@ export const FlipEffectSchema = z
  * property: position
  * value: { delta: 2 }
  * ```
+ * @example Deal damage equal to attacker's attack stat
+ * ```yaml
+ * kind: update
+ * source: { param: attacker }
+ * pieces: { inventory: battlefield, select: { id: { param: target } } }
+ * property: hp
+ * value: { delta: { var: "source.property.attack", negate: true } }
+ * ```
  */
 export const UpdateEffectSchema = z
   .object({
     kind: z.literal("update"),
+    source: PieceRefSchema.optional().describe(
+      "Optional reference to a source gamepiece whose properties can be read " +
+        "via 'source.property.<id>' var paths in the value expression. " +
+        "Typically the piece performing the action (e.g. an attacker).",
+    ),
     pieces: GamepieceSelectorSchema.describe("Which pieces to update."),
     property: z
       .string()
@@ -516,7 +577,9 @@ export const UpdateEffectSchema = z
     value: PropertyValueSchema,
   })
   .describe(
-    "Changes a mutable property on one or more pieces. Only valid for mutable properties.",
+    "Changes a mutable property on one or more pieces. Only valid for mutable properties. " +
+      "Use 'source' to reference a triggering piece's properties in the value expression. " +
+      "The current target piece's properties are available via 'target.property.<id>'.",
   );
 
 /**
@@ -634,9 +697,9 @@ export const RollEffectSchema = z
  * ```
  * @example Pick a random suit (equal probability)
  * ```yaml
- * id: choose-trump-suit
+ * id: choose-dominant-suit
  * kind: set-random
- * path: game.property.trumpSuit
+ * path: game.property.dominantSuit
  * options:
  *   - value: hearts
  *   - value: diamonds
@@ -1460,6 +1523,10 @@ export const PlayerTargetSchema = z
 export const SetStateEffectSchema = z
   .object({
     kind: z.literal("set-state"),
+    source: PieceRefSchema.optional().describe(
+      "Optional reference to a source gamepiece whose properties can be read " +
+        "via 'source.property.<id>' var paths in the value expression.",
+    ),
     path: z
       .string()
       .describe(
@@ -1480,6 +1547,7 @@ export const SetStateEffectSchema = z
   .describe(
     "Writes to abstract game or player state declared in the state module. " +
       "Use 'target' to apply player-scoped effects to specific or multiple players. " +
+      "Use 'source' to reference a triggering piece's properties in the value expression. " +
       "For piece property mutations use 'update'. " +
       "Readable in preconditions and flow endConditions via the same dot-path.",
   );
