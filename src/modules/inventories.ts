@@ -316,10 +316,11 @@ export type InventoryPlacement = z.infer<typeof InventoryPlacementSchema>;
  * ```
  */
 export const InventoryVisibilitySchema = z
-  .enum(["always", "revealed", "owner", "count-only", "never"])
+  .enum(["always", "top-revealed", "revealed", "owner", "count-only", "never"])
   .describe(
     "Controls what players can see about the contents of this inventory. " +
       "'always': all contents and their properties are visible to all players. " +
+      "'top-revealed': only the top piece is visible to all players; others are hidden. This only applies to stack-structured inventories. " +
       "'revealed': contents visible when the containing piece is face-up; hidden when face-down. " +
       "'owner': only the player who owns this inventory can see its contents. " +
       "'count-only': all players can see how many pieces are in this inventory " +
