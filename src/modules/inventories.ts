@@ -447,6 +447,22 @@ export const InventoryTypeSchema = z
     gridDimensions: GridDimensionsSchema.optional().describe(
       "Required when structure is 'grid'. Defines the number of rows and columns.",
     ),
+    gridOrder: z
+      .enum(["row-major", "col-major"])
+      .optional()
+      .describe(
+        "Fill order for sequential additions to a grid inventory (no explicit placement). " +
+          "Default 'row-major' (left-to-right, top-to-bottom).",
+      ),
+    lineLength: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        "Fixed number of positions for a line-structure inventory. " +
+          "Pre-allocates slots; additions beyond this length throw. Omit for dynamic lines.",
+      ),
     capacity: InventoryCapacitySchema.optional().describe(
       "Size constraints on this inventory. Omit for unconstrained collections.",
     ),
