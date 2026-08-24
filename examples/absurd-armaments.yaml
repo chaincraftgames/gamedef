@@ -83,10 +83,11 @@ inventories:
         kind: game
       accepts:
         - weapon
-      visibility: count-only
+      visibility: never
+      countVisibility: always
       description: >-
         The battlefield. Both players secretly move their selected weapon here each round
-        (count-only keeps the choice hidden until both have committed). revealArena makes
+        (pieces hidden, count visible until both have committed). revealArena makes
         them public for resolution; the dominant-gamepiece mechanic compares them and they return home.
 
 state:

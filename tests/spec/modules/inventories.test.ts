@@ -6,7 +6,8 @@
  * every feature of the inventories module:
  *   - scope kinds: game, player (all), player (role-restricted), team, piece
  *   - structure: none, stack, line, grid, graph
- *   - visibility: always, revealed, owner, count-only, never
+ *   - visibility: always, revealed, owner, never
+ *   - countVisibility: always, owner, never
  *   - displayHint: pile, fan
  *   - gridDimensions
  *   - capacity (min, max, both, neither)
@@ -29,7 +30,8 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
         label: "Draw Deck",
         scope: { kind: "game" },
         accepts: ["playing-card"],
-        visibility: "count-only",
+        visibility: "never",
+        countVisibility: "always",
         structure: "stack",
         displayHint: "pile",
         description: "Shared draw deck for the whole game",
@@ -62,7 +64,8 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
         label: "Crib",
         scope: { kind: "player", role: "dealer" },
         accepts: ["playing-card"],
-        visibility: "never",
+        visibility: "owner",
+        countVisibility: "always",
         capacity: { min: 4, max: 4 },
         description: "The crib — only the dealer has one",
       },
@@ -213,8 +216,19 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
     expect(byVis("always")).toBeDefined();
     expect(byVis("revealed")).toBeDefined();
     expect(byVis("owner")).toBeDefined();
-    expect(byVis("count-only")).toBeDefined();
     expect(byVis("never")).toBeDefined();
+  });
+
+  it("parses countVisibility when present", () => {
+    const result = InventoriesModuleSchema.parse(validModule);
+    const deck = result.types.find((t) => t.id === "draw-deck")!;
+    expect(deck.countVisibility).toBe("always");
+  });
+
+  it("leaves countVisibility undefined when omitted", () => {
+    const result = InventoriesModuleSchema.parse(validModule);
+    const discard = result.types.find((t) => t.id === "discard-pile")!;
+    expect(discard.countVisibility).toBeUndefined();
   });
 
   it("parses displayHint values correctly", () => {

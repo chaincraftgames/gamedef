@@ -70,7 +70,8 @@ inventories:
         kind: game
       accepts:
         - card
-      visibility: count-only
+      visibility: never
+      countVisibility: always
       structure: stack
       description: The face-down draw deck.
     - id: hand

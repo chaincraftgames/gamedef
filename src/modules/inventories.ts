@@ -39,8 +39,8 @@
  *     { kind: player, role: dealer }  → one per player with that role (e.g., crib)
  *     { kind: team }                  → one per team
  *     { kind: piece }                 → one per gamepiece (via inventorySlots)
- * - visibility controls what opponents can see about this inventory's contents.
- *   "count-only" is inventory-level (opponents see how many, not what).
+ * - visibility controls which players can see piece identities.
+ *   countVisibility (optional) independently controls whether the count is visible.
  *
  * @example Full module (card game + grid board)
  * ```yaml
@@ -56,7 +56,8 @@
  *     label: Draw Pile
  *     scope: { kind: game }
  *     accepts: [combat-card]
- *     visibility: count-only
+ *     visibility: never
+ *     countVisibility: always
  *     structure: stack
  *     displayHint: pile
  *   - id: discard-pile
@@ -308,24 +309,40 @@ export type InventoryPlacement = z.infer<typeof InventoryPlacementSchema>;
 /**
  * @example
  * ```yaml
- * always      # all contents visible to all players (shared discard pile)
+ * always      # all pieces visible to all players (shared discard pile)
  * revealed    # visible when the piece is face-up (face-down deck, face-up tableau)
  * owner       # visible only to the owning player (hand of cards)
- * count-only  # opponents see how many pieces, not which ones (hidden hand with count)
- * never       # invisible to all players (engine-internal buffer)
+ * never       # pieces invisible to all players (engine-internal buffer, face-down deck)
  * ```
  */
 export const InventoryVisibilitySchema = z
-  .enum(["always", "top-revealed", "revealed", "owner", "count-only", "never"])
+  .enum(["always", "top-revealed", "revealed", "owner", "never"])
   .describe(
-    "Controls what players can see about the contents of this inventory. " +
-      "'always': all contents and their properties are visible to all players. " +
-      "'top-revealed': only the top piece is visible to all players; others are hidden. This only applies to stack-structured inventories. " +
-      "'revealed': contents visible when the containing piece is face-up; hidden when face-down. " +
-      "'owner': only the player who owns this inventory can see its contents. " +
-      "'count-only': all players can see how many pieces are in this inventory " +
-      "but not which pieces (e.g., an opponent's hand size). " +
-      "'never': contents are invisible to all players (engine-internal use only).",
+    "Controls which players can see the identity of pieces in this inventory. " +
+      "'always': all pieces visible to all players. " +
+      "'top-revealed': only the top piece is visible; others are hidden. Stack-only. " +
+      "'revealed': visible when the containing piece is face-up; hidden when face-down. " +
+      "'owner': only the owning player can see the pieces. " +
+      "'never': pieces invisible to all players (engine-internal use only). " +
+      "To control whether the piece count is visible, use countVisibility.",
+  );
+
+/**
+ * @example
+ * ```yaml
+ * countVisibility: always  # everyone sees how many pieces (default for most inventories)
+ * countVisibility: owner   # only the owner sees the count (e.g. Sheriff satchel)
+ * countVisibility: never   # count is hidden from all players
+ * ```
+ */
+export const CountVisibilitySchema = z
+  .enum(["always", "owner", "never"])
+  .describe(
+    "Controls whether players can see how many pieces are in this inventory. " +
+      "'always': all players can see the count. " +
+      "'owner': only the owning player can see the count. " +
+      "'never': count is hidden from all players. " +
+      "Defaults based on visibility: owner → always, never → never, others → always.",
   );
 
 // ---------------------------------------------------------------------------
@@ -364,13 +381,14 @@ export const InventoryCapacitySchema = z
 // ---------------------------------------------------------------------------
 
 /**
- * @example Shared draw deck (stack structure, count-only visibility)
+ * @example Shared draw deck (stack structure, pieces hidden, count visible)
  * ```yaml
  * id: combat-card-deck
  * label: Draw Pile
  * scope: { kind: game }
  * accepts: [combat-card]
- * visibility: count-only
+ * visibility: never
+ * countVisibility: always
  * structure: stack
  * displayHint: pile
  * ```
@@ -385,13 +403,14 @@ export const InventoryCapacitySchema = z
  * displayHint: fan
  * capacity: { max: 7 }
  * ```
- * @example Role-restricted inventory (cribbage crib — dealer only)
+ * @example Role-restricted inventory (cribbage crib — dealer only, hidden until scoring)
  * ```yaml
  * id: crib
  * label: Crib
  * scope: { kind: player, role: dealer }
  * accepts: [playing-card]
- * visibility: never
+ * visibility: owner
+ * countVisibility: always
  * structure: none
  * capacity: { min: 4, max: 4 }
  * ```
@@ -440,6 +459,10 @@ export const InventoryTypeSchema = z
           "Must have at least one entry.",
       ),
     visibility: InventoryVisibilitySchema,
+    countVisibility: CountVisibilitySchema.optional().describe(
+      "Controls whether players can see how many pieces are in this inventory. " +
+        "Defaults based on visibility: owner → always, never → never, others → always.",
+    ),
     structure: InventoryStructureSchema.default("none").describe(
       "Organizational structure of this inventory. 'none' (default) for unordered collections " +
         "(hands, pools, resource piles) where no spatial queries are needed.",
@@ -506,6 +529,7 @@ export const InventoriesModuleSchema = z
 export type InventoryScope = z.infer<typeof InventoryScopeSchema>;
 export type InventoryStructure = z.infer<typeof InventoryStructureSchema>;
 export type InventoryVisibility = z.infer<typeof InventoryVisibilitySchema>;
+export type CountVisibility = z.infer<typeof CountVisibilitySchema>;
 export type InventoryCapacity = z.infer<typeof InventoryCapacitySchema>;
 export type GridDimensions = z.infer<typeof GridDimensionsSchema>;
 export type InventoryType = z.infer<typeof InventoryTypeSchema>;
