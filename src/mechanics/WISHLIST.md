@@ -345,7 +345,60 @@ Ticket to Ride destination tickets.
 
 ---
 
+### `chaincraft:status-effect`
+**Status**: Not yet designed
+
+Attaches a timed status to a gamepiece: an optional effect list that fires on each
+turn/round boundary while active, with a duration after which the status auto-removes.
+
+Key config (tentative):
+- `id` — mechanic instance ID (allows multiple status types on the same game)
+- `statusProperty` — piece property (boolean or integer) flagging the status is active;
+  also used by action preconditions (e.g. gating an action while a piece is frozen/stunned)
+- `tick` — effect list run each boundary while active (e.g. `update hp delta -1` for
+  poison). Optional — omit for pure gating statuses (freeze, stun) that need no tick.
+- `boundary` — `turn-start` | `turn-end` | `round-end` — when the tick fires and
+  duration is decremented.
+- `duration` — number of boundaries the status remains active, or `until-cleared` for
+  indefinite (cleared manually via an `update` effect).
+- `stacking` — policy when the same status is applied to a piece already carrying it:
+  - `intensity` — accumulate magnitude (poison: each application adds to the tick damage)
+  - `refresh` — reset duration to the new value, keep current magnitude
+  - `extend` — add the new duration to the remaining duration
+  - `ignore` — no-op if already active (burn: applied once, not stackable)
+
+Synthesizes: duration counter property on the piece type, boundary-hook wiring for the
+tick effect list, per-tick decrement and auto-removal when duration reaches zero.
+
+**Depends on** a generic turn/round-boundary scheduling primitive (see Design notes below).
+**Open**: stacking semantics are the hardest unresolved piece — in particular, ordering
+when multiple statuses touch the same property (e.g. poison and regen both writing `hp`
+on the same boundary). Decide before more than one status type coexists on a piece type.
+
+Notes:
+- Freeze/stun are the degenerate case: `tick` omitted, `duration: 1`, `stacking: refresh`.
+  These can be modeled without this mechanic (boolean property + action precondition +
+  turn-end `update` reset), but the mechanic unifies the pattern once the scheduler exists.
+- Per-instance tracking: if a game has multiple piece instances carrying the same status,
+  duration is tracked per piece, not globally.
+- The `statusProperty` can be an integer to double as a stack counter (intensity stacking).
+
+Examples: poison (DOT, `stacking: intensity`), burn (self-incrementing tick, `stacking:
+ignore`), regeneration (heal-per-turn), temporary stat buffs/debuffs, stun/freeze (gating,
+no tick).
+
+---
+
 ## Design notes / open questions
+
+- **Turn/round-boundary scheduling primitive**: Several mechanics need to wire effects
+  to turn/round boundaries: `status-effect` (tick + duration decrement), `elimination`
+  (per-player condition check), `score-track` (optional auto-advance). Rather than each
+  mechanic reimplementing duration bookkeeping, a shared primitive is needed —
+  `triggers: [{ on: 'turn-end' | 'turn-start' | 'round-end', nodeId?: string }]` — that
+  mechanics can declare. This is the key prerequisite for `status-effect` and
+  `elimination`; `score-track` can benefit too. Must be resolved before any of those
+  mechanics are designed in detail.
 
 - **Auto-wire vs explicit triggers**: Game-level mechanics that fire at turn/round
   boundaries (score-track advance, elimination check) could either auto-wire to the
