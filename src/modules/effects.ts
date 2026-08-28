@@ -341,6 +341,10 @@ const NumericOrVarSchema = z.union([
         "Allows decrementing by positive-valued properties without custom effects.",
     ),
   }),
+  z.object({ expr: z.string() }).describe(
+    "Compute the delta/factor from an infix expression evaluated at execution time. " +
+      "Example: 'actor.property.attack - target.property.defense'.",
+  ),
 ]);
 
 /** Additive delta operator: increment/decrement a numeric value. */
