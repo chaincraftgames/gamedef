@@ -183,6 +183,11 @@ export const GamepieceSelectorSchema = z
         "Restrict selection to pieces of this gamepiece type ID. Forward reference to " +
           "the gamepiece-types module. Omit to select any piece regardless of type.",
       ),
+    filter: ConditionExpressionSchema.optional().describe(
+      "Infix expression to filter eligible pieces. " +
+        "Evaluated per-piece after 'ofType'. Available paths: 'piece.property.<id>', 'piece.typeId'. " +
+        "Example: 'piece.property.frozen == false' or 'piece.typeId == \"creature\"'.",
+    ),
   })
   .describe(
     "Identifies which pieces an effect operates on — which inventory and how to pick from it. " +
