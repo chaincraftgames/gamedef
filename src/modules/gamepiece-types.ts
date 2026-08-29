@@ -245,11 +245,43 @@ export const PassiveSlotSchema = z
       .string()
       .optional()
       .describe("Human-readable description of what kind of passive this slot holds."),
+    enabledIn: z
+      .array(z.string())
+      .min(1)
+      .describe(
+        "Inventory type IDs where a passive in this slot is active. " +
+          "Forward references to the inventories module. " +
+          "Example: ['field'] — passive only fires while the piece is on the field.",
+      ),
+    faceFilter: z
+      .enum(["any", "face-up-only", "face-down-only"])
+      .default("face-up-only")
+      .describe(
+        "Face state required for the passive to fire. " +
+          "'face-up-only' (default): disabled when hidden/face-down. " +
+          "'any': fires regardless of face state. " +
+          "'face-down-only': trap-style — only fires face-down.",
+      ),
+    exhaustedFilter: z
+      .enum(["any", "ready-only", "exhausted-only"])
+      .default("any")
+      .describe(
+        "Exhausted state required for the passive to fire. " +
+          "'any' (default): fires regardless of exhausted state. " +
+          "'ready-only': only fires when the piece is ready/untapped. " +
+          "'exhausted-only': only fires when the piece is exhausted/tapped.",
+      ),
+    condition: ConditionExpressionSchema.optional().describe(
+      "Infix expression evaluated against the carrying piece before the passive fires. " +
+        "Available paths: 'piece.property.<id>'. " +
+        "Example: 'piece.property.frozen == false' — passive is suppressed while frozen.",
+    ),
   })
   .describe(
     "A named binding point for a piece-instance passive effect. " +
-      "Defined on the type; the catalog entry provides the actual passive. " +
-      "This decouples piece type structure from per-card passive effects.",
+      "Carries all enablement constraints: which inventories activate it, face/exhausted gates, " +
+      "and an optional piece-property condition. The passive itself is purely behavioral. " +
+      "Different slots on the same type can have different enablement envelopes.",
   );
 
 export const ReactiveSlotSchema = z

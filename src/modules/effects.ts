@@ -1991,34 +1991,6 @@ export const PassiveEffectSchema = z
         "Replaces effect-ID fan-out: instead of listing every damage effect ID, " +
         "declare: { kind: 'state-write', path: 'player.property.hp', direction: 'decrease' }.",
     ),
-    enabledIn: z
-      .array(z.string())
-      .min(1)
-      .optional()
-      .describe(
-        "Inventory type IDs where this passive is enabled. The passive only fires when the " +
-          "carrying piece is in one of these inventories. Forward references to the inventories module. " +
-          "Example: ['battlefield', 'equipment-slot'] — enabled when played, not when in hand. " +
-          "Required for gamepiece passives. Omit for role passives (enabled whenever role is held).",
-      ),
-    exhaustedFilter: z
-      .enum(["any", "ready-only", "exhausted-only"])
-      .default("any")
-      .describe(
-        "Which exhausted states allow this passive to fire. " +
-          "'any' (default): fires regardless of exhausted state. " +
-          "'ready-only': only fires when the piece is ready/untapped. " +
-          "'exhausted-only': only fires when the piece is exhausted/tapped.",
-      ),
-    faceFilter: z
-      .enum(["any", "face-up-only", "face-down-only"])
-      .default("face-up-only")
-      .describe(
-        "Which face states allow this passive to fire. " +
-          "'face-up-only' (default): disabled when the piece is hidden/face-down. " +
-          "'any': fires regardless of face state (e.g., a trap that works face-down). " +
-          "'face-down-only': only fires when the piece is face-down.",
-      ),
     effects: z
       .array(EffectSchema)
       .min(1)
