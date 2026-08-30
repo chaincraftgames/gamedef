@@ -32,22 +32,22 @@
  * @example Effects module (card game)
  * ```yaml
  * effects:
- *   - id: shuffle-deck
+ *   - id: shuffleDeck
  *     kind: shuffle
- *     inventory: draw-deck
+ *     inventory: drawDeck
  *
- *   - id: draw-card
+ *   - id: drawCard
  *     kind: move
- *     from: { inventory: draw-deck, select: top }
- *     to: { inventory: player-hand }
+ *     from: { inventory: drawDeck, select: top }
+ *     to: { inventory: playerHand }
  *
- *   - id: advance-score-2
+ *   - id: advanceScore2
  *     kind: update
- *     pieces: { inventory: score-track, select: all, ofType: score-peg }
+ *     pieces: { inventory: scoreTrack, select: all, ofType: scorePeg }
  *     property: position
  *     value: { delta: 2 }
  *
- *   - id: resolve-combat
+ *   - id: resolveCombat
  *     kind: custom
  *     description: >
  *       Compare power totals of face-up cards. Higher total scores 1 point.
@@ -55,31 +55,30 @@
  * ```
  * @example Action with inline effects using { param } (Liar's Dice make-bid)
  * ```yaml
- * id: make-bid
- * pattern: standard
+ * id: makeBid
  * inputs:
  *   - id: quantity
- *     type: { kind: integer, min: 1, max: 30 }
- *   - id: face-value
- *     type: { kind: integer, min: 1, max: 6 }
+ *     type: { kind: number, min: 1, max: 30 }
+ *   - id: faceValue
+ *     type: { kind: number, min: 1, max: 6 }
  * effects:
  *   # { param: quantity } resolves from this action's inputs[] by id — no bind map
  *   - kind: update
- *     pieces: { inventory: current-bid, select: top }
+ *     pieces: { inventory: currentBid, select: top }
  *     property: quantity
  *     value: { param: quantity }
  *   - kind: update
- *     pieces: { inventory: current-bid, select: top }
- *     property: face-value
- *     value: { param: face-value }
+ *     pieces: { inventory: currentBid, select: top }
+ *     property: faceValue
+ *     value: { param: faceValue }
  * ```
  * @example Mixed named refs and inline in a single action
  * ```yaml
  * effects:
- *   - ref: shuffle-deck
+ *   - ref: shuffleDeck
  *   - kind: move
- *     from: { inventory: draw-deck, select: top }
- *     to: { inventory: player-hand }
+ *     from: { inventory: drawDeck, select: top }
+ *     to: { inventory: playerHand }
  * ```
  */
 
@@ -94,14 +93,14 @@ import { ConditionExpressionSchema, IdentifierSchema } from "#gamedef/modules/co
 /**
  * @example
  * ```yaml
- * { inventory: draw-deck, select: top }
- * { inventory: draw-deck, select: top, count: 3 }
- * { inventory: combat-zone, select: all, ofType: captain }
- * { inventory: dice-tray, select: random, count: 2 }
- * { inventory: game:unassigned, select: { id: white-king } }
- * { inventory: player-hand, select: { id: { param: chosen-card } } }
- * { player: { stateRef: game.property.roundLoser }, inventory: player-cup, select: top }
- * { player: { param: target-player }, inventory: player-hand, select: top }
+ * { inventory: drawDeck, select: top }
+ * { inventory: drawDeck, select: top, count: 3 }
+ * { inventory: combatZone, select: all, ofType: captain }
+ * { inventory: diceTray, select: random, count: 2 }
+ * { inventory: game:unassigned, select: { id: whiteKing } }
+ * { inventory: playerHand, select: { id: { param: chosenCard } } }
+ * { player: { stateRef: game.property.roundLoser }, inventory: playerCup, select: top }
+ * { player: { param: targetPlayer }, inventory: playerHand, select: top }
  * ```
  */
 export const GamepieceSelectorSchema = z
@@ -202,13 +201,13 @@ export const GamepieceSelectorSchema = z
 /**
  * @example
  * ```yaml
- * { inventory: player-hand }                                        # unordered — no position needed
- * { inventory: discard-pile, at: { kind: stack-top } }             # top of the discard stack
- * { inventory: market-row, at: { kind: line-index, index: 2 } }   # slot 2 in a line inventory
- * { inventory: battle-grid, at: { kind: grid-cell, row: 1, col: "e" } } # grid cell
+ * { inventory: playerHand }                                        # unordered — no position needed
+ * { inventory: discardPile, at: { kind: stack-top } }             # top of the discard stack
+ * { inventory: marketRow, at: { kind: line-index, index: 2 } }   # slot 2 in a line inventory
+ * { inventory: battleGrid, at: { kind: grid-cell, row: 1, col: "e" } } # grid cell
  * { inventory: board, at: { kind: graph-node, nodeId: "C3" } }    # graph node
- * { inventory: battle-grid, at: { param: target-cell } }          # position from action input
- * { player: { param: target-player }, inventory: player-hand }    # opponent's inventory
+ * { inventory: battleGrid, at: { param: targetCell } }          # position from action input
+ * { player: { param: targetPlayer }, inventory: playerHand }    # opponent's inventory
  * ```
  */
 export const InventoryTargetSchema = z
@@ -270,8 +269,8 @@ export const InventoryTargetSchema = z
 /**
  * @example
  * ```yaml
- * { inventory: player-hand }                          # every player's hand
- * { inventory: player-hand, roles: [mafia] }          # only players holding the mafia role
+ * { inventory: playerHand }                          # every player's hand
+ * { inventory: playerHand, roles: [mafia] }          # only players holding the mafia role
  * ```
  */
 export const DistributeTargetSchema = z
@@ -459,34 +458,34 @@ export const PropertyValueSchema = z
  * @example Draw a card (cross-inventory)
  * ```yaml
  * kind: move
- * from: { inventory: draw-deck, select: top }
- * to: { inventory: player-hand }
+ * from: { inventory: drawDeck, select: top }
+ * to: { inventory: playerHand }
  * ```
  * @example Player discards a chosen card to the top of the discard pile
  * ```yaml
  * kind: move
- * from: { inventory: player-hand, select: { id: { param: card } } }
- * to: { inventory: discard-pile, at: { kind: stack-top } }
+ * from: { inventory: playerHand, select: { id: { param: card } } }
+ * to: { inventory: discardPile, at: { kind: stack-top } }
  * # within the action that calls this effect:
  * # inputs:
  * #   - id: card
- * #     type: { kind: gamepiece-select, inventory: player-hand }
+ * #     type: { kind: gamepiece-select, inventory: playerHand }
  * ```
  * @example Move a piece to a specific grid cell (within-inventory reposition)
  * ```yaml
  * kind: move
- * from: { inventory: battle-grid, select: { id: { param: piece } } }
- * to: { inventory: battle-grid, at: { kind: grid-cell, row: 2, col: 3 } }
+ * from: { inventory: battleGrid, select: { id: { param: piece } } }
+ * to: { inventory: battleGrid, at: { kind: grid-cell, row: 2, col: 3 } }
  * # within the action that calls this effect:
  * # inputs:
  * #   - id: piece
- * #     type: { kind: gamepiece-select, inventory: battle-grid }
+ * #     type: { kind: gamepiece-select, inventory: battleGrid }
  * ```
  * @example Advance a token to slot 5 on a line inventory
  * ```yaml
  * kind: move
- * from: { inventory: score-track, select: all, ofType: score-peg }
- * to: { inventory: score-track, at: { kind: line-index, index: 5 } }
+ * from: { inventory: scoreTrack, select: all, ofType: scorePeg }
+ * to: { inventory: scoreTrack, at: { kind: line-index, index: 5 } }
  * ```
  */
 export const MoveEffectSchema = z
@@ -511,7 +510,7 @@ export const MoveEffectSchema = z
  * @example Reveal all cards in the combat zone
  * ```yaml
  * kind: flip
- * pieces: { inventory: combat-zone, select: all }
+ * pieces: { inventory: combatZone, select: all }
  * to: face-up
  * ```
  * @example Toggle the top card of the reserve
@@ -544,18 +543,18 @@ export const FlipEffectSchema = z
  * @example Set a piece as exhausted
  * ```yaml
  * kind: update
- * pieces: { inventory: play-area, select: { id: { param: piece } } }
+ * pieces: { inventory: playArea, select: { id: { param: piece } } }
  * property: isExhausted
  * value: true
  * # within the action that calls this effect:
  * # inputs:
  * #   - id: piece
- * #     type: { kind: gamepiece-select, inventory: play-area }
+ * #     type: { kind: gamepiece-select, inventory: playArea }
  * ```
  * @example Advance score peg by 2
  * ```yaml
  * kind: update
- * pieces: { inventory: score-track, select: all, ofType: score-peg }
+ * pieces: { inventory: scoreTrack, select: all, ofType: scorePeg }
  * property: position
  * value: { delta: 2 }
  * ```
@@ -598,7 +597,7 @@ export const UpdateEffectSchema = z
  * @example Shuffle the draw deck
  * ```yaml
  * kind: shuffle
- * inventory: draw-deck
+ * inventory: drawDeck
  * ```
  */
 export const ShuffleEffectSchema = z
@@ -620,16 +619,16 @@ export const ShuffleEffectSchema = z
  * @example Deal 6 cards to each player round-robin
  * ```yaml
  * kind: distribute
- * from: { inventory: draw-deck, select: top }
- * to: { inventory: player-hand }
+ * from: { inventory: drawDeck, select: top }
+ * to: { inventory: playerHand }
  * count: 6
  * style: round-robin
  * ```
  * @example Deal 1 kill card to each mafia player
  * ```yaml
  * kind: distribute
- * from: { inventory: role-cards, select: top }
- * to: { inventory: player-hand, roles: [mafia] }
+ * from: { inventory: roleCards, select: top }
+ * to: { inventory: playerHand, roles: [mafia] }
  * count: 1
  * ```
  */
@@ -666,12 +665,12 @@ export const DistributeEffectSchema = z
  * @example Roll all dice in the dice tray
  * ```yaml
  * kind: roll
- * pieces: { inventory: dice-tray, select: all }
+ * pieces: { inventory: diceTray, select: all }
  * ```
  * @example Roll a single chosen die
  * ```yaml
  * kind: roll
- * pieces: { inventory: dice-tray, select: { id: { param: die } } }
+ * pieces: { inventory: diceTray, select: { id: { param: die } } }
  * ```
  */
 export const RollEffectSchema = z
@@ -695,7 +694,7 @@ export const RollEffectSchema = z
  *
  * @example 25% chance of a dramatic reversal (weighted boolean)
  * ```yaml
- * id: roll-reversal
+ * id: rollReversal
  * kind: set-random
  * path: game.property.includeReversal
  * options:
@@ -706,7 +705,7 @@ export const RollEffectSchema = z
  * ```
  * @example Pick a random suit (equal probability)
  * ```yaml
- * id: choose-dominant-suit
+ * id: chooseDominantSuit
  * kind: set-random
  * path: game.property.dominantSuit
  * options:
@@ -717,7 +716,7 @@ export const RollEffectSchema = z
  * ```
  * @example Roll a d6 result into state (numeric range)
  * ```yaml
- * id: roll-initiative
+ * id: rollInitiative
  * kind: set-random
  * path: game.property.initiative
  * range:
@@ -796,7 +795,7 @@ export const SetRandomEffectSchema = z
  * @example Set a piece to a specific orientation
  * ```yaml
  * kind: orient
- * pieces: { inventory: play-area, select: all, ofType: compass-token }
+ * pieces: { inventory: playArea, select: all, ofType: compassToken }
  * to: 0
  * ```
  */
@@ -838,7 +837,7 @@ export const OrientEffectSchema = z
  *
  * @example Complex combat resolution
  * ```yaml
- * id: resolve-combat
+ * id: resolveCombat
  * kind: custom
  * description: >
  *   Compare the sum of power values of all face-up combat cards in each player's
@@ -905,24 +904,24 @@ export const MessageRecipientSchema = z
  * @example Reveal all dice to all players for challenge resolution (Liar's Dice)
  * ```yaml
  * kind: reveal
- * pieces: { inventory: player-cup, select: all }
+ * pieces: { inventory: playerCup, select: all }
  * to: all
  * ```
  * @example Active player peeks at the top card of the draw deck
  * ```yaml
  * kind: reveal
- * pieces: { inventory: draw-deck, select: top }
+ * pieces: { inventory: drawDeck, select: top }
  * to: actor
  * ```
  * @example Reveal one opponent's card to the acting player
  * ```yaml
  * kind: reveal
- * pieces: { inventory: opponent-hand, select: { id: { param: card } } }
+ * pieces: { inventory: opponentHand, select: { id: { param: card } } }
  * to: actor
  * # within the action that calls this effect:
  * # inputs:
  * #   - id: card
- * #     type: { kind: gamepiece-select, inventory: opponent-hand }
+ * #     type: { kind: gamepiece-select, inventory: opponentHand }
  * ```
  */
 export const RevealEffectSchema = z
@@ -950,12 +949,12 @@ export const RevealEffectSchema = z
  * @example Re-hide all dice after challenge resolution (Liar's Dice)
  * ```yaml
  * kind: hide
- * pieces: { inventory: player-cup, select: all }
+ * pieces: { inventory: playerCup, select: all }
  * ```
  * @example Re-hide the peeked top card after a peek action
  * ```yaml
  * kind: hide
- * pieces: { inventory: draw-deck, select: top }
+ * pieces: { inventory: drawDeck, select: top }
  * ```
  */
 export const HideEffectSchema = z
@@ -973,14 +972,14 @@ export const HideEffectSchema = z
 /**
  * @example Confirmation after player creates a weapon
  * ```yaml
- * id: confirm-weapon
+ * id: confirmWeapon
  * kind: message
  * to: actor
  * template: "Your weapon '{{input.weaponDescription}}' has been registered."
  * ```
  * @example Phase announcement to all
  * ```yaml
- * id: announce-battle
+ * id: announceBattle
  * kind: message
  * to: all
  * template: "Round {{state.game.property.currentRound}} begins — select your weapon!"
@@ -1157,7 +1156,7 @@ export const LlmInputSchema = z
 /**
  * @example Opening announcement broadcast to all (Absurd Armaments initialize_game)
  * ```yaml
- * id: generate-opening
+ * id: generateOpening
  * kind: llm-effect
  * prompt:
  *   rules:
@@ -1174,7 +1173,7 @@ export const LlmInputSchema = z
  * ```
  * @example Round resolution — compute winner AND narrate (Absurd Armaments match_continues)
  * ```yaml
- * id: resolve-round
+ * id: resolveRound
  * kind: llm-effect
  * inputs:
  *   - name: roundWinner
@@ -1198,7 +1197,7 @@ export const LlmInputSchema = z
  * ```
  * @example Per-player private reveal (Absurd Armaments reveal_complete)
  * ```yaml
- * id: generate-reveals
+ * id: generateReveals
  * kind: llm-effect
  * prompt:
  *   computation: >
@@ -1287,7 +1286,7 @@ export const LlmEffectSchema = z
  *
  * @example Generate weapon art from its description (Absurd Armaments)
  * ```yaml
- * id: illustrate-weapon
+ * id: illustrateWeapon
  * kind: generate-gamepiece-image
  * pieces: { inventory: forge, select: top }
  * imageType: token
@@ -1297,7 +1296,7 @@ export const LlmEffectSchema = z
  * ```
  * @example Direct render from template variables (no description step)
  * ```yaml
- * id: render-card
+ * id: renderCard
  * kind: generate-gamepiece-image
  * pieces: { inventory: arsenal, select: top }
  * imageType: token
@@ -1385,22 +1384,19 @@ export const GenerateImageEffectSchema = z
  * ```yaml
  * target:
  *   kind: matching
- *   condition: { ">": [{ "var": "player.property.buildingCount" }, 0] }
+ *   condition: "player.property.buildingCount > 0"
  * ```
  * @example Target players whose score exceeds 10
  * ```yaml
  * target:
  *   kind: matching
- *   condition: { ">=": [{ "var": "player.property.score" }, 10] }
+ *   condition: "player.property.score >= 10"
  * ```
- * @example Compound condition — score > 5 AND not the actor
+ * @example Compound condition — score > 5 AND at least one resource
  * ```yaml
  * target:
  *   kind: matching
- *   condition:
- *     and:
- *       - { ">": [{ "var": "player.property.score" }, 5] }
- *       - { "!=": [{ "var": "player.id" }, { "var": "actor.id" }] }
+ *   condition: "player.property.score > 5 and player.inventory.resources.count > 0"
  * ```
  */
 export const PlayerTargetSchema = z
@@ -1523,10 +1519,7 @@ export const PlayerTargetSchema = z
  * value: { delta: -1 }
  * target:
  *   kind: matching
- *   condition:
- *     property: buildingCount
- *     operator: gte
- *     value: 1
+ *   condition: "player.property.buildingCount >= 1"
  * ```
  */
 export const SetStateEffectSchema = z
@@ -1568,10 +1561,10 @@ export const SetStateEffectSchema = z
 /**
  * @example Used inside a reactive "before" action to negate the trigger
  * ```yaml
- * id: block-damage
+ * id: blockDamage
  * label: Block
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: cancel-effect
@@ -1612,7 +1605,7 @@ export const CancelEffectSchema = z
  * id: brace
  * label: Brace for Impact
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -1620,10 +1613,10 @@ export const CancelEffectSchema = z
  * ```
  * @example Reduce damage by armor rating (var delta)
  * ```yaml
- * id: armor-absorb
+ * id: armorAbsorb
  * label: Armor Absorb
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -1631,10 +1624,10 @@ export const CancelEffectSchema = z
  * ```
  * @example Halve incoming damage (shield — literal mult)
  * ```yaml
- * id: shield-block
+ * id: shieldBlock
  * label: Shield Block
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -1653,10 +1646,10 @@ export const CancelEffectSchema = z
  * ```
  * @example Amplify damage by curse stacks (var delta with negate)
  * ```yaml
- * id: curse-amplify
+ * id: curseAmplify
  * label: Curse Amplification
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -2188,11 +2181,11 @@ export const EffectsModuleSchema = z
  *
  * @example
  * ```yaml
- * ref: shuffle-deck
+ * ref: shuffleDeck
  * ```
  * @example
  * ```yaml
- * ref: draw-card
+ * ref: drawCard
  * ```
  */
 export const EffectCallRefSchema = z
@@ -2212,12 +2205,12 @@ export const EffectCallRefSchema = z
  * @example Mixed inline and ref
  * ```yaml
  * effects:
- *   - ref: shuffle-deck                          # named, no params
- *   - ref: advance-score                         # named, bound param
+ *   - ref: shuffleDeck                          # named, no params
+ *   - ref: advanceScore                         # named, bound param
  *     bind: { delta: { from: literal, value: 1 } }
  *   - kind: move                                 # inline
- *     from: { inventory: draw-deck, select: top }
- *     to: { inventory: player-hand }
+ *     from: { inventory: drawDeck, select: top }
+ *     to: { inventory: playerHand }
  * ```
  */
 export const EffectCallSchema = z

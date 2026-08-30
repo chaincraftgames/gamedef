@@ -19,7 +19,7 @@
  *   quantities without knowing anything about how pieces are distributed.
  * - `properties` sets initial scalar values. Omit to use declared defaults.
  * - `id` on a single piece enables targeting by name in setup effects:
- *   `select: { id: white-king }`.
+ *   `select: { id: whiteKing }`.
  * - No `inventory`, `placement`, or `forRoles` — all of that is setup logic
  *   expressed in flow `onEnter` hooks, keeping catalog and setup orthogonal.
  *
@@ -32,10 +32,10 @@
  * @example Chess — named pieces with color property
  * ```yaml
  * entries:
- *   - id: white-king
+ *   - id: whiteKing
  *     typeId: king
  *     properties: { color: white }
- *   - id: white-queen
+ *   - id: whiteQueen
  *     typeId: queen
  *     properties: { color: white }
  *   - typeId: pawn
@@ -44,7 +44,7 @@
  *   - typeId: pawn
  *     quantity: 8
  *     properties: { color: black }
- *   - id: black-king
+ *   - id: blackKing
  *     typeId: king
  *     properties: { color: black }
  *   # Setup (root loop onEnter) places each piece on the board via move effects.
@@ -53,21 +53,21 @@
  * ```yaml
  * # All 52 cards share one typeId; rank and suit are properties.
  * entries:
- *   - typeId: playing-card
+ *   - typeId: playingCard
  *     properties: { rank: "2", suit: hearts }
- *   - typeId: playing-card
+ *   - typeId: playingCard
  *     properties: { rank: "3", suit: hearts }
  *   # ... one entry per card (52 total)
- *   - typeId: playing-card
+ *   - typeId: playingCard
  *     properties: { rank: ace, suit: spades }
  *   # Setup (root loop onEnter): shuffle game:unassigned, distribute 5 to each player hand.
  * ```
  * @example Resource game — token supply
  * ```yaml
  * entries:
- *   - typeId: gold-coin
+ *   - typeId: goldCoin
  *     quantity: 30
- *   - typeId: wood-token
+ *   - typeId: woodToken
  *     quantity: 20
  *   # Setup moves them to a bank inventory if visual display is needed,
  *   # or leaves them in game:unassigned for implicit pool behaviour.
@@ -75,11 +75,11 @@
  * @example Werewolf — role-specific items (setup assigns in onEnter per role)
  * ```yaml
  * entries:
- *   - typeId: kill-card
+ *   - typeId: killCard
  *     quantity: 1
- *   - typeId: heal-potion
+ *   - typeId: healPotion
  *     quantity: 2
- *   - typeId: vote-token
+ *   - typeId: voteToken
  *     quantity: 10
  *   # Setup distributes to role-specific players via distribute effects with roles filter.
  * ```
@@ -146,18 +146,18 @@ const InitialPropertiesSchema = z
  *
  * @example Named unique piece
  * ```yaml
- * id: white-king
+ * id: whiteKing
  * typeId: king
  * properties: { color: white }
  * ```
  * @example Fungible identical pieces (anonymous)
  * ```yaml
- * typeId: gold-coin
+ * typeId: goldCoin
  * quantity: 30
  * ```
  * @example Pieces with distinct property values (one entry per piece)
  * ```yaml
- * typeId: playing-card
+ * typeId: playingCard
  * properties: { rank: ace, suit: spades }
  * ```
  */

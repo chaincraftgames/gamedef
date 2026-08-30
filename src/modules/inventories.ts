@@ -45,38 +45,38 @@
  * @example Full module (card game + grid board)
  * ```yaml
  * types:
- *   - id: player-hand
+ *   - id: playerHand
  *     label: Hand
  *     scope: { kind: player }
- *     accepts: [combat-card]
+ *     accepts: [combatCard]
  *     visibility: owner
  *     displayHint: fan
  *     capacity: { max: 7 }
- *   - id: combat-card-deck
+ *   - id: combatCardDeck
  *     label: Draw Pile
  *     scope: { kind: game }
- *     accepts: [combat-card]
+ *     accepts: [combatCard]
  *     visibility: never
  *     countVisibility: always
  *     structure: stack
  *     displayHint: pile
- *   - id: discard-pile
+ *   - id: discardPile
  *     label: Discard
  *     scope: { kind: game }
- *     accepts: [combat-card]
+ *     accepts: [combatCard]
  *     visibility: always
  *     structure: stack
  *     displayHint: pile
- *   - id: score-marker-track
+ *   - id: scoreMarkerTrack
  *     label: Score Track
  *     scope: { kind: game }
- *     accepts: [score-marker]
+ *     accepts: [scoreMarker]
  *     visibility: always
  *     structure: line
- *   - id: battle-grid
+ *   - id: battleGrid
  *     label: Battle Grid
  *     scope: { kind: game }
- *     accepts: [sea-zone]
+ *     accepts: [seaZone]
  *     visibility: always
  *     structure: grid
  *     gridDimensions: { rows: 5, columns: 5 }
@@ -383,10 +383,10 @@ export const InventoryCapacitySchema = z
 /**
  * @example Shared draw deck (stack structure, pieces hidden, count visible)
  * ```yaml
- * id: combat-card-deck
+ * id: combatCardDeck
  * label: Draw Pile
  * scope: { kind: game }
- * accepts: [combat-card]
+ * accepts: [combatCard]
  * visibility: never
  * countVisibility: always
  * structure: stack
@@ -394,10 +394,10 @@ export const InventoryCapacitySchema = z
  * ```
  * @example Per-player hand (none structure — unordered, fan display)
  * ```yaml
- * id: player-hand
+ * id: playerHand
  * label: Hand
  * scope: { kind: player }
- * accepts: [combat-card]
+ * accepts: [combatCard]
  * visibility: owner
  * structure: none
  * displayHint: fan
@@ -408,7 +408,7 @@ export const InventoryCapacitySchema = z
  * id: crib
  * label: Crib
  * scope: { kind: player, role: dealer }
- * accepts: [playing-card]
+ * accepts: [playingCard]
  * visibility: owner
  * countVisibility: always
  * structure: none
@@ -416,19 +416,19 @@ export const InventoryCapacitySchema = z
  * ```
  * @example Score marker track (line structure — score-track mechanic adds behavior)
  * ```yaml
- * id: score-marker-track
+ * id: scoreMarkerTrack
  * label: Score
  * scope: { kind: game }
- * accepts: [score-marker]
+ * accepts: [scoreMarker]
  * visibility: always
  * structure: line
  * ```
  * @example Tic-tac-toe board (grid structure)
  * ```yaml
- * id: ttt-board
+ * id: tttBoard
  * label: Board
  * scope: { kind: game }
- * accepts: [x-piece, o-piece]
+ * accepts: [xPiece, oPiece]
  * visibility: always
  * structure: grid
  * gridDimensions: { rows: 3, columns: 3 }

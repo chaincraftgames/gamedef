@@ -29,13 +29,13 @@
  *   game:
  *     properties:
  *       - id: currentBidQuantity
- *         type: { kind: integer, min: 0, max: 30 }
+ *         type: { kind: number, min: 0, max: 30 }
  *         default: 0
  *       - id: currentBidFace
- *         type: { kind: integer, min: 0, max: 6 }
+ *         type: { kind: number, min: 0, max: 6 }
  *         default: 0
  *       - id: activePlayers
- *         type: { kind: integer, min: 0 }
+ *         type: { kind: number, min: 0 }
  *         default: { fromPlayerCount: true }
  *   player:
  *     properties:
@@ -92,7 +92,7 @@ export const StateDefaultSchema = z
  * @example Count buildings a player has constructed
  * ```yaml
  * - id: buildingCount
- *   type: { kind: integer }
+ *   type: { kind: number }
  *   computed:
  *     inventory: built
  *     aggregate: count
@@ -103,13 +103,13 @@ export const StateDefaultSchema = z
  *   type: { kind: boolean }
  *   computed:
  *     inventory: built
- *     ofType: factory-token
+ *     ofType: factoryToken
  *     aggregate: exists
  * ```
  * @example Sum total army strength
  * ```yaml
  * - id: totalArmyStrength
- *   type: { kind: integer }
+ *   type: { kind: number }
  *   computed:
  *     inventory: army
  *     ofType: soldier
@@ -119,7 +119,7 @@ export const StateDefaultSchema = z
  * @example Highest value card in hand
  * ```yaml
  * - id: bestCardValue
- *   type: { kind: integer }
+ *   type: { kind: number }
  *   computed:
  *     inventory: hand
  *     property: value
@@ -180,14 +180,14 @@ export const ComputedPropertySchema = z
  * @example Stored property
  * ```yaml
  * - id: currentBidQuantity
- *   type: { kind: integer, min: 0, max: 30 }
+ *   type: { kind: number, min: 0, max: 30 }
  *   default: 0
  *   description: Quantity declared in the current round's bid.
  * ```
  * @example Computed property (count pieces in inventory)
  * ```yaml
  * - id: buildingCount
- *   type: { kind: integer }
+ *   type: { kind: number }
  *   computed:
  *     inventory: built
  *     aggregate: count

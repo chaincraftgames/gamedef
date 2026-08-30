@@ -108,7 +108,8 @@ inventories:
       label: Library
       scope: { kind: game }
       accepts: [creature, spell]
-      visibility: count-only
+      visibility: never
+      countVisibility: always
       structure: stack
       description: >-
         Shared staging pile, shuffled at setup and emptied into the two sides.
@@ -118,7 +119,8 @@ inventories:
       label: Deck
       scope: { kind: player }
       accepts: [creature, spell]
-      visibility: count-only
+      visibility: never
+      countVisibility: always
       structure: stack
     - id: hand
       label: Hand
@@ -287,7 +289,6 @@ effects:
         - kind: set-state
           path: player.property.life
           value: { delta: -2 }
-          target: { kind: trigger-actor }
 
 actions:
   actions:

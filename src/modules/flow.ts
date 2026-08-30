@@ -39,24 +39,23 @@
  *
  * **Multi-phase games (count: 1 pattern):**
  * When a game has distinct sequential phases (e.g., exploration then escape,
- * setup then main game), use a root loop with `count: 1` containing child loops —
+ * setup then main game), use a `kind: game` root with child loops —
  * one per phase. The root runs its children once in order; each child loops
  * internally until its own exit condition.
  * Example: Betrayal at House on the Hill — haunt triggers mid-exploration, then
  * survivors and traitor play separate escape loops.
  * ```yaml
  * root:
- *   kind: loop
- *   count: 1                          # run phases once in sequence
+ *   kind: game
  *   children:
  *     - kind: loop
  *       id: exploration
- *       endCondition: { var: "game.property.hauntTriggered" }
+ *       endCondition: "game.property.hauntTriggered == true"
  *       finalRound: true              # all players finish current turn
  *       children: [...]
  *     - kind: loop
  *       id: escape
- *       endCondition: { var: "game.property.gameOver" }
+ *       endCondition: "game.property.gameOver == true"
  *       children: [...]
  * ```
  *
@@ -69,72 +68,77 @@
  * @example Liar's Dice — game setup in root onEnter, then looping bidding rounds
  * ```yaml
  * root:
- *   kind: loop
- *   endCondition: { "<=": [{ "var": "game.state.activePlayers" }, 1] }
+ *   kind: game
  *   hooks:
  *     onEnter:                          # game setup — runs once before first turn
  *       - kind: distribute              # give each player 5 dice from game:unassigned
- *         from: { inventory: game:unassigned, select: top, count: 5, ofType: die }
- *         to: { scope: all-players, inventory: player-dice-cup }
+ *         from: { inventory: game:unassigned, select: top, ofType: die }
+ *         to: { inventory: playerDiceCup }
+ *         count: 5
  *   interruptWindows:
- *     - id: steal-response
- *       trigger: steal-die
+ *     - id: stealResponse
+ *       trigger: stealDie
  *       timing: before
  *       eligiblePlayers: opponents
- *       actions: [block-steal]
+ *       actions: [blockSteal]
  *       timeout: 15000
  *   children:
- *     - kind: turn
- *       actor: active-player
- *       turnOrder:
- *         kind: seat
- *         direction: clockwise
- *       grammar:
- *         kind: choice
- *         passable: true
- *         options:
- *           - kind: action
- *             ref: make-bid
- *           - kind: action
- *             ref: challenge
+ *     - kind: loop
+ *       endCondition: "game.property.activePlayers <= 1"
+ *       children:
+ *         - kind: turn
+ *           actor: active-player
+ *           turnOrder:
+ *             kind: seat
+ *             direction: clockwise
+ *           grammar:
+ *             kind: choice
+ *             passable: true
+ *             options:
+ *               - kind: action
+ *                 ref: makeBid
+ *               - kind: action
+ *                 ref: challenge
  * ```
  * @example Werewolf — night, discussion, voting
  * ```yaml
  * root:
- *   kind: loop
- *   endCondition: { "var": "game.state.gameOver" }
+ *   kind: game
  *   children:
- *     - kind: simultaneous
- *       id: night
- *       label: Night Phase
- *       actor: { roles: [villager, mafia] }
- *       grammar:
- *         kind: slot
- *         inventory: role-card
- *         slot: night-action
- *         select: all
- *     - kind: simultaneous
- *       id: day-discussion
- *       label: Discussion
- *       actor: all-players
- *       endCondition: all-passed
- *       grammar:
- *         kind: choice
- *         passable: true
- *         options:
- *           - kind: action
- *             ref: accuse-player
- *     - kind: simultaneous
- *       id: day-vote
- *       label: Vote
- *       actor: all-players
- *       grammar:
- *         kind: action
- *         ref: vote-eliminate
- *       hooks:
- *         onComplete:
- *           - ref: reveal-eliminated
- *           - ref: remove-eliminated
+ *     - kind: loop
+ *       endCondition: "game.property.gameOver == true"
+ *       children:
+ *         - kind: simultaneous
+ *           id: night
+ *           label: Night Phase
+ *           actor: { roles: [villager, mafia] }
+ *           grammar:
+ *             kind: slot
+ *             inventory: roleCard
+ *             slot: nightAction
+ *             select: all
+ *         - kind: simultaneous
+ *           id: dayDiscussion
+ *           label: Discussion
+ *           actor: all-players
+ *           endCondition: until-pass
+ *           grammar:
+ *             kind: choice
+ *             passable: true
+ *             options:
+ *               - kind: action
+ *                 ref: accusePlayer
+ *         - kind: simultaneous
+ *           id: dayVote
+ *           label: Vote
+ *           actor: all-players
+ *           grammar:
+ *             kind: action
+ *             ref: voteEliminate
+ *           hooks:
+ *             onComplete:
+ *               - ref: revealEliminated
+ *               - ref: removeEliminated
  * ```
  */
 
@@ -171,7 +175,7 @@ const FlowHooksSchema = z
  * ```yaml
  * { playerProperty: gold }
  * { playerInventory: hand }
- * { playerInventory: hand, ofType: gold-coin }
+ * { playerInventory: hand, ofType: goldCoin }
  * ```
  */
 const PlayerStateRefSchema = z
@@ -272,7 +276,7 @@ const StartingPlayerSchema = z
  * ```yaml
  * turnOrder:
  *   kind: ranked
- *   by: { playerInventory: hand, ofType: gold-coin }
+ *   by: { playerInventory: hand, ofType: goldCoin }
  *   order: descending
  * ```
  * @example Explicit named seats
@@ -383,7 +387,7 @@ const ActorSpecSchema = z
  * kind: choice
  * options:
  *   - kind: action
- *     ref: make-bid
+ *     ref: makeBid
  *   - kind: action
  *     ref: challenge
  * ```
@@ -392,7 +396,7 @@ const ActorSpecSchema = z
  * kind: sequence
  * steps:
  *   - kind: action
- *     ref: draw-card
+ *     ref: drawCard
  *   - kind: repeat
  *     count:
  *       max: 3
@@ -401,13 +405,13 @@ const ActorSpecSchema = z
  *       passable: true
  *       options:
  *         - kind: action
- *           ref: play-card
+ *           ref: playCard
  * ```
  * @example Activate any matching slot on pieces in hand
  * ```yaml
  * kind: slot
- * inventory: player-hand
- * slot: card-ability
+ * inventory: playerHand
+ * slot: cardAbility
  * select: any
  * ```
  */
@@ -760,24 +764,24 @@ export type FlowNode =
  * @example Counter-spell on a specific turn (scoped to the attack turn only)
  * ```yaml
  * kind: turn
- * id: attack-turn
+ * id: attackTurn
  * actor: active-player
  * grammar: { kind: action, ref: attack }
  * interruptWindows:
- *   - id: counter-spell
- *     trigger: deal-damage
+ *   - id: counterSpell
+ *     trigger: dealDamage
  *     timing: before
  *     eligiblePlayers: opponents
- *     actions: [counter-spell]
+ *     actions: [counterSpell]
  *     timeout: 10000
  * ```
  * @example Reaction window active throughout the whole game (on root loop)
  * ```yaml
  * kind: loop
- * endCondition: { var: game.state.gameOver }
+ * endCondition: "game.property.gameOver == true"
  * interruptWindows:
- *   - id: heal-response
- *     trigger: take-damage
+ *   - id: healResponse
+ *     trigger: takeDamage
  *     timing: after
  *     eligiblePlayers: { roles: [healer] }
  *     actions: [resilience]
@@ -1017,7 +1021,7 @@ export const WinConditionSchema = z
  *       - ref: deal-dice        # runs once at game start
  *   children:
  *     - kind: loop
- *       endCondition: { "<=": [{ var: game.property.activePlayers }, 1] }
+ *       endCondition: "game.property.activePlayers <= 1"
  *       hooks:
  *         onEnter:
  *           - ref: roll-all-dice

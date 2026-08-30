@@ -38,7 +38,7 @@
  *         visibility: revealed
  *       - id: rank
  *         label: Rank
- *         type: { kind: integer, min: 1, max: 13 }
+ *         type: { kind: number, min: 1, max: 13 }
  *         mutable: false
  *         visibility: revealed
  *     hasFaceState: true
@@ -108,7 +108,7 @@ export const PropertyVisibilitySchema = z
  * ```yaml
  * id: hitPoints
  * label: Hit Points
- * type: { kind: integer, min: 0, max: 10 }
+ * type: { kind: number, min: 0, max: 10 }
  * mutable: true
  * default: 10
  * visibility: always
@@ -223,13 +223,13 @@ export const InventorySlotSchema = z
 /**
  * @example Phase-specific action slot
  * ```yaml
- * id: day-action
+ * id: dayAction
  * description: Action available during the day phase
- * activeInPhases: [day-phase]
+ * availableInSubflows: [dayPhase]
  * ```
  * @example Phase-independent slot (availability governed by flow context)
  * ```yaml
- * id: special-ability
+ * id: specialAbility
  * description: This card's unique triggered ability
  * ```
  */

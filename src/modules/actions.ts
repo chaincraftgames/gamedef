@@ -19,7 +19,7 @@
  * - Actions may declare 'inputs[]' — typed, player-provided values collected at
  *   action time. Inline effects in the same action can use { param: id } in
  *   PropertyValue to reference those values. Engine resolves by name — no bind map.
- * - 'preconditions' is a JSONLogic expression evaluated against runtime state before
+ * - 'preconditions' is an infix expression evaluated against runtime state before
  *   the action is offered or accepted. State paths: 'input.<id>', 'actor.property.<id>',
  *   'actor.inventory.<id>.count', 'game.property.<id>', 'game.inventory.<id>.count'.
  *   Cross-input constraints that are simpler string rules go in 'ActionInput.validation';
@@ -45,47 +45,47 @@
  * @example Full actions module (Liar's Dice excerpt)
  * ```yaml
  * actions:
- *   - id: make-bid
+ *   - id: makeBid
  *     label: Make Bid
  *     inputs:
  *       - id: quantity
  *         type: { kind: number, min: 1, max: 30 }
  *         label: Quantity
- *         validation: Must be strictly higher than current bid, unless face-value also increases
- *       - id: face-value
+ *         validation: Must be strictly higher than current bid, unless face value also increases
+ *       - id: faceValue
  *         type: { kind: number, min: 1, max: 6 }
  *         label: Face Value
  *     effects:
  *       - kind: update
- *         pieces: { inventory: current-bid, select: top }
+ *         pieces: { inventory: currentBid, select: top }
  *         property: quantity
  *         value: { param: quantity }
  *       - kind: update
- *         pieces: { inventory: current-bid, select: top }
- *         property: face-value
- *         value: { param: face-value }
+ *         pieces: { inventory: currentBid, select: top }
+ *         property: faceValue
+ *         value: { param: faceValue }
  *
- *   - id: draw-card
+ *   - id: drawCard
  *     label: Draw Card
  *     effects:
- *       - ref: draw-from-deck
+ *       - ref: drawFromDeck
  *     oncePerTurn: true
  *
- *   - id: discard-chosen
+ *   - id: discardChosen
  *     label: Discard
  *     inputs:
  *       - id: card
- *         type: { kind: gamepiece-select, inventory: player-hand }
+ *         type: { kind: gamepiece-select, inventory: playerHand }
  *         label: Choose card to discard
  *     effects:
  *       - kind: move
- *         from: { inventory: player-hand, select: { id: { param: card } } }
- *         to: { inventory: discard-pile, at: { kind: stack-top } }
+ *         from: { inventory: playerHand, select: { id: { param: card } } }
+ *         to: { inventory: discardPile, at: { kind: stack-top } }
  *
- *   - id: resolve-battle
+ *   - id: resolveBattle
  *     label: Resolve Battle
  *     effects:
- *       - kind: prose
+ *       - kind: custom
  *         description: >
  *           Compare power totals of all face-up cards in each player's combat zone.
  *           The player with the higher total wins the round and scores 1 point.
@@ -109,27 +109,27 @@ import { ConditionExpressionSchema, IdentifierSchema } from "./common.js";
  *     type: { kind: number, min: 1, max: 30 }
  *     label: Quantity
  *     validation: Must be strictly higher than current bid, unless face-value also increases
- *   - id: face-value
+ *   - id: faceValue
  *     type: { kind: number, min: 1, max: 6 }
  *     label: Face Value
- *   - id: target-player
+ *   - id: targetPlayer
  *     type: { kind: enum, values: [player1, player2, player3, player4] }
  *     label: Target Player
  *   - id: attacker
  *     type: { kind: effect-originator }
  *     label: Attacker
  *     # engine auto-populates; effects reference via { param: attacker }
- *   - id: chosen-card
- *     type: { kind: gamepiece-select, inventory: player-hand }
+ *   - id: chosenCard
+ *     type: { kind: gamepiece-select, inventory: playerHand }
  *     label: Choose Card to Play
- *   - id: target-creature
- *     type: { kind: gamepiece-select, inventory: battlefield, ofType: creature, fromPlayer: { param: target-player } }
+ *   - id: targetCreature
+ *     type: { kind: gamepiece-select, inventory: battlefield, ofType: creature, fromPlayer: { param: targetPlayer } }
  *     label: Choose Creature to Attack
  *   - id: opponent
  *     type: { kind: player-select, excludeSelf: true }
  *     label: Choose Opponent
- *   - id: target-cell
- *     type: { kind: inventory-position, inventory: battle-grid }
+ *   - id: targetCell
+ *     type: { kind: inventory-position, inventory: battleGrid }
  *     label: Choose Placement
  * ```
  */
@@ -268,94 +268,94 @@ export const ActionInputSchema = z
 /**
  * @example Draw a card once per turn (named-effect ref)
  * ```yaml
- * id: draw-card
+ * id: drawCard
  * label: Draw Card
  * effects:
- *   - ref: draw-from-deck
+ *   - ref: drawFromDeck
  * oncePerTurn: true
  * ```
  * @example Discard a chosen card (gamepiece-select input)
  * ```yaml
- * id: discard-chosen
+ * id: discardChosen
  * label: Discard
  * inputs:
  *   - id: card
- *     type: { kind: gamepiece-select, inventory: player-hand }
+ *     type: { kind: gamepiece-select, inventory: playerHand }
  *     label: Choose card to discard
  * effects:
  *   - kind: move
- *     from: { inventory: player-hand, select: { id: { param: card } } }
- *     to: { inventory: discard-pile, at: { kind: stack-top } }
+ *     from: { inventory: playerHand, select: { id: { param: card } } }
+ *     to: { inventory: discardPile, at: { kind: stack-top } }
  * ```
  * @example Place a piece on a grid (two inputs: piece + position)
  * ```yaml
- * id: deploy-unit
+ * id: deployUnit
  * label: Deploy Unit
  * inputs:
  *   - id: unit
  *     type: { kind: gamepiece-select, inventory: reserves, ofType: soldier }
  *     label: Choose unit to deploy
  *   - id: cell
- *     type: { kind: inventory-position, inventory: battle-grid }
+ *     type: { kind: inventory-position, inventory: battleGrid }
  *     label: Choose deployment position
  * effects:
  *   - kind: move
  *     from: { inventory: reserves, select: { id: { param: unit } } }
- *     to: { inventory: battle-grid, at: { param: cell } }
+ *     to: { inventory: battleGrid, at: { param: cell } }
  * ```
  * @example Steal from opponent (two inputs: player + piece)
  * ```yaml
- * id: steal-card
+ * id: stealCard
  * label: Steal Card
  * inputs:
  *   - id: target
  *     type: { kind: player-select, excludeSelf: true }
  *     label: Choose opponent
  *   - id: card
- *     type: { kind: gamepiece-select, inventory: player-hand, fromPlayer: { param: target } }
+ *     type: { kind: gamepiece-select, inventory: playerHand, fromPlayer: { param: target } }
  *     label: Choose card to steal
  * effects:
  *   - kind: move
- *     from: { player: { param: target }, inventory: player-hand, select: { id: { param: card } } }
- *     to: { inventory: player-hand }
+ *     from: { player: { param: target }, inventory: playerHand, select: { id: { param: card } } }
+ *     to: { inventory: playerHand }
  * ```
  * @example Liar's Dice bid — player inputs, inline { param } effects
  * ```yaml
- * id: make-bid
+ * id: makeBid
  * label: Make Bid
  * inputs:
  *   - id: quantity
  *     type: { kind: number, min: 1, max: 30 }
- *     validation: Must exceed current bid quantity unless face-value also increases
- *   - id: face-value
+ *     validation: Must exceed current bid quantity unless face value also increases
+ *   - id: faceValue
  *     type: { kind: number, min: 1, max: 6 }
  * effects:
  *   - kind: update
- *     pieces: { inventory: current-bid, select: top }
+ *     pieces: { inventory: currentBid, select: top }
  *     property: quantity
  *     value: { param: quantity }
  *   - kind: update
- *     pieces: { inventory: current-bid, select: top }
- *     property: face-value
- *     value: { param: face-value }
+ *     pieces: { inventory: currentBid, select: top }
+ *     property: faceValue
+ *     value: { param: faceValue }
  * ```
- * @example Complex resolution — prose effect as escape hatch
+ * @example Complex resolution — custom effect as escape hatch
  * ```yaml
- * id: resolve-battle
+ * id: resolveBattle
  * label: Resolve Battle
  * effects:
- *   - kind: prose
+ *   - kind: custom
  *     description: >
  *       Compare power totals of all face-up cards in each player's combat zone.
  *       Higher total wins and scores 1 point. On a tie no points scored; both draw.
  * ```
  * @example Reactive negate — cancel incoming damage before it resolves
  * ```yaml
- * id: block-damage
+ * id: blockDamage
  * label: Block
- * interrupt: [response-window]
+ * interrupt: [responseWindow]
  * reactive:
- *   trigger: deal-damage      # named effect ID in effects module
+ *   trigger: dealDamage      # named effect ID in effects module
  *   timing: before            # fires before the effect resolves
  * inputs:
  *   - id: attacker
@@ -366,10 +366,10 @@ export const ActionInputSchema = z
  * ```
  * @example Reactive adjust — reduce incoming damage by armor rating (var delta)
  * ```yaml
- * id: armor-absorb
+ * id: armorAbsorb
  * label: Armor Absorb
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -377,10 +377,10 @@ export const ActionInputSchema = z
  * ```
  * @example Reactive adjust — halve incoming damage (literal mult)
  * ```yaml
- * id: shield-block
+ * id: shieldBlock
  * label: Shield Block
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: before
  * effects:
  *   - kind: adjust
@@ -391,16 +391,16 @@ export const ActionInputSchema = z
  * id: thorns
  * label: Thorns
  * reactive:
- *   trigger: deal-damage
+ *   trigger: dealDamage
  *   timing: after
  * inputs:
  *   - id: attacker
  *     type: { kind: effect-originator }
- *   - id: attacking-creature
+ *   - id: attackingCreature
  *     type: { kind: trigger-input, inputId: creature }  # piece from triggering action's "creature" input
  * effects:
  *   - kind: update
- *     pieces: { inventory: battlefield, select: { id: { param: attacking-creature } } }
+ *     pieces: { inventory: battlefield, select: { id: { param: attackingCreature } } }
  *     property: hp
  *     value: { delta: -2 }
  * ```
@@ -409,26 +409,26 @@ export const ActionInputSchema = z
  * id: resilience
  * label: Resilience
  * reactive:
- *   trigger: take-damage      # named effect ID in effects module
+ *   trigger: takeDamage      # named effect ID in effects module
  *   timing: after             # fires after effect resolves
  * effects:
- *   - ref: heal-one-hp
+ *   - ref: healOneHp
  * ```
  * @example Precondition — can only challenge if a bid has been made
  * ```yaml
  * id: challenge
  * label: Challenge
- * preconditions: "game.inventory.current-bid.count != 0"
+ * preconditions: "game.inventory.currentBid.count != 0"
  * effects:
- *   - ref: resolve-challenge
+ *   - ref: resolveChallenge
  * ```
  * @example Precondition — can only buy if actor can afford it
  * ```yaml
- * id: buy-card
+ * id: buyCard
  * label: Buy Card
  * preconditions: "actor.property.coins >= 3"
  * effects:
- *   - ref: purchase-card
+ *   - ref: purchaseCard
  * ```
  */
 export const ActionSchema = z
