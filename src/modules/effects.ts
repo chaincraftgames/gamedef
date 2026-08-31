@@ -1451,18 +1451,10 @@ export const PlayerTargetSchema = z
       .describe(
         "All players satisfying an infix condition expression evaluated against each player's state.",
       ),
-    z
-      .object({ kind: z.literal("trigger-actor") })
-      .describe(
-        "The player who initiated the triggering effect. " +
-          "Only valid inside passive effects and reactive actions. " +
-          "Use to target counter-effects at the attacker/originator.",
-      ),
   ])
   .describe(
     "Who a player-scoped effect applies to. Defaults to 'actor' when omitted. " +
-      "Use to target other players, all players, or players matching a condition. " +
-      "'trigger-actor' is available in passives and reactive contexts.",
+      "Use to target other players, all players, or players matching a condition.",
   );
 
 // ---------------------------------------------------------------------------
@@ -1879,10 +1871,8 @@ export const PassiveTriggerSchema = z
  *       direction: decrease
  *     enabledIn: [battlefield]
  *     effects:
- *       - kind: set-state
- *         path: player.property.hp
- *         value: { delta: -1 }
- *         target: { kind: trigger-actor }
+ *       - kind: custom
+ *         description: Deal 1 damage to the player who initiated the triggering effect.
  * ```
  * @example All outgoing damage increased by rage stacks (offensive)
  * ```yaml
@@ -1990,9 +1980,7 @@ export const PassiveEffectSchema = z
       .describe(
         "Effects to execute when this passive fires. " +
           "If the list contains adjust or cancel-effect, the passive intercepts before " +
-          "the trigger resolves. Otherwise, effects fire after the trigger resolves. " +
-          "Within passive effects, 'target: { kind: trigger-actor }' references the player " +
-          "who initiated the triggering effect.",
+          "the trigger resolves. Otherwise, effects fire after the trigger resolves.",
       ),
   })
   .describe(
