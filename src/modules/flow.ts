@@ -51,7 +51,7 @@
  *     - kind: loop
  *       id: exploration
  *       endCondition: "game.property.hauntTriggered == true"
- *       finalRound: true              # all players finish current turn
+ *       checkAfter: turn              # exit right after the triggering turn
  *       children: [...]
  *     - kind: loop
  *       id: escape
@@ -59,11 +59,17 @@
  *       children: [...]
  * ```
  *
- * **Final-round pattern (finalRound: true):**
- * When an endCondition fires mid-rotation (e.g., a player reaches 50 points),
- * set `finalRound: true` on the loop. The engine completes the current full
- * iteration before exiting, giving all other players one more turn.
- * Without `finalRound`, the loop exits immediately when the condition first fires.
+ * **When endCondition is checked (checkAfter):**
+ * - `iteration` (default): after every child has run. The current round always
+ *   finishes. No actor is bound — `actor.*` paths are invalid.
+ * - `turn`: after each player's turn in any turn node inside the loop, with that
+ *   player bound as `actor`. Remaining seats do not act; inner nodes' onComplete
+ *   hooks still fire on the way out. Use for "game ends when a player hits 0 life".
+ *
+ * **Final-round pattern (finalRound: true, requires checkAfter: turn):**
+ * When a player's turn ends with the endCondition true, every other player gets
+ * one more turn: the loop exits when turn order comes back to the triggering
+ * player. The condition is not re-evaluated during the final round.
  *
  * @example Liar's Dice — game setup in root onEnter, then looping bidding rounds
  * ```yaml
@@ -609,22 +615,30 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
                 "Provide either 'count' or 'endCondition', not both.",
             ),
           endCondition: FlowEndConditionSchema.optional().describe(
-            "Infix expression evaluated after each full iteration. Exit when true. " +
+            "Infix expression; the loop exits when true. When it is evaluated is set by 'checkAfter'. " +
               "Example: 'game.property.gameWinner != \"\"' or 'game.inventory.deck.count == 0'. " +
               "Or the special value 'until-pass' to exit when all players consecutively pass. " +
-              "Paths: game.property.<id>, game.inventory.<id>.count, actor.property.<id>. " +
+              "Paths: game.property.<id>, game.inventory.<id>.count; actor.property.<id> only with checkAfter: turn. " +
               "Functions: all(players, expr), any(players, expr). " +
               "Provide either 'count' or 'endCondition', not both.",
           ),
+          checkAfter: z
+            .enum(["iteration", "turn"])
+            .optional()
+            .describe(
+              "When endCondition is evaluated. 'iteration' (default): after all children finish — the " +
+                "current round always completes; no actor is bound. 'turn': after each player's turn in " +
+                "any turn node inside this loop, with that player bound as 'actor'; the loop exits " +
+                "immediately, so later seats do not act. Use 'turn' for elimination/instant-win games.",
+            ),
           finalRound: z
             .boolean()
             .optional()
             .describe(
-              "If true, when endCondition first becomes true mid-iteration, the engine " +
-                "completes the current full iteration before exiting. " +
-                "Use for 'everyone gets one more turn' patterns (e.g., first player to reach " +
-                "50 points triggers a final round for all other players). " +
-                "Only meaningful with endCondition; ignored when using count. Defaults to false.",
+              "If true, when a player's turn ends with endCondition true, every other player gets one " +
+                "more turn: the loop exits when turn order returns to the triggering player. " +
+                "Use for 'first to 50 points triggers the final round' patterns. " +
+                "Requires endCondition with checkAfter: turn. Defaults to false.",
             ),
           writeIterationTo: z
             .string()
@@ -747,7 +761,7 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
 
 // TypeScript type (needed for recursive z.ZodType annotation above)
 export type FlowNode =
-  | { kind: "loop"; id?: string; label?: string; count?: number; endCondition?: unknown; finalRound?: boolean; writeIterationTo?: string; children: FlowNode[]; interruptWindows?: unknown[]; hooks?: _FlowHooks }
+  | { kind: "loop"; id?: string; label?: string; count?: number; endCondition?: unknown; checkAfter?: "iteration" | "turn"; finalRound?: boolean; writeIterationTo?: string; children: FlowNode[]; interruptWindows?: unknown[]; hooks?: _FlowHooks }
   | { kind: "turn"; id?: string; label?: string; actor: ActorSpec; turnOrder?: TurnOrder; grammar: TurnGrammarNode; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks }
   | { kind: "simultaneous"; id?: string; label?: string; actor: ActorSpec; grammar: TurnGrammarNode; endCondition?: unknown; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks };
 

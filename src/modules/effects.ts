@@ -393,6 +393,7 @@ export const MultSchema = z
  * value: { mult: { var: "player.property.workerCount" } }  # scale by state variable
  * value: { delta: { var: "source.property.attack", negate: true } }  # subtract source piece's attack
  * value: { var: "target.property.defense" }  # read from current target piece
+ * value: { delta: { var: "trigger.delta", negate: true } }  # (passives only) undo/mirror the triggering change
  * ```
  */
 export const PropertyValueSchema = z
@@ -425,7 +426,9 @@ export const PropertyValueSchema = z
         "Set this property to the value of another state property. Use a dot-path: " +
           "'game.property.<id>', 'player.property.<id>', 'game.inventory.<id>.count', " +
           "'player.inventory.<id>.count', 'source.property.<id>' (requires a source field), " +
-          "'target.property.<id>' (available in update effects — refers to the current target piece). " +
+          "'target.property.<id>' (available in update effects — refers to the current target piece), " +
+          "'trigger.<field>' (available only inside a passive's effects when the trigger is state-write; " +
+          "fields: delta (signed, newValue - previousValue), previousValue, newValue, path, direction, targetId). " +
           "Resolved at effect execution time.",
       ),
     z
@@ -433,7 +436,7 @@ export const PropertyValueSchema = z
       .describe(
         "Compute this value from an infix expression evaluated at effect execution time. " +
           "Supports arithmetic (+, -, *, /), comparisons, boolean operators, and " +
-          "dot-path state references (game.property.x, actor.property.y, etc.). " +
+          "dot-path state references (game.property.x, actor.property.y, trigger.delta in passives, etc.). " +
           "Example: 'actor.property.attack - target.property.defense'. " +
           "Supersedes var/delta/mult for complex computations.",
       ),
@@ -1903,6 +1906,34 @@ export const PassiveTriggerSchema = z
  *         path: player.property.hp
  *         value: { delta: 1 }
  * ```
+ * @example Proportional lifesteal — heal exactly the damage dealt via trigger.delta
+ * ```yaml
+ * passives:
+ *   - id: true-lifesteal
+ *     trigger:
+ *       kind: state-write
+ *       scope: actor
+ *       path: player.property.hp
+ *       direction: decrease
+ *     effects:
+ *       - kind: set-state
+ *         path: player.property.hp
+ *         value: { delta: { var: "trigger.delta", negate: true } }  # delta is negative for damage
+ * ```
+ * @example Thorns scaled by the attacking piece — source.property.* is the triggering effect's source
+ * ```yaml
+ * passives:
+ *   - id: spiked-hide
+ *     trigger:
+ *       kind: state-write
+ *       scope: target
+ *       path: gamepiece.property.defense
+ *       direction: decrease
+ *     effects:
+ *       - kind: set-state
+ *         path: player.property.hp   # no target → defaults to the actor, i.e. the attacking player
+ *         value: { delta: { var: "source.property.power", negate: true } }
+ * ```
  * @example Passive fires when owner's piece is stolen (defensive move trigger)
  * ```yaml
  * passives:
@@ -1980,7 +2011,10 @@ export const PassiveEffectSchema = z
       .describe(
         "Effects to execute when this passive fires. " +
           "If the list contains adjust or cancel-effect, the passive intercepts before " +
-          "the trigger resolves. Otherwise, effects fire after the trigger resolves.",
+          "the trigger resolves. Otherwise, effects fire after the trigger resolves. " +
+          "After-effects on a state-write trigger may read the triggering write via " +
+          "'trigger.delta' / 'trigger.previousValue' / 'trigger.newValue' var paths, and the " +
+          "triggering effect's source piece (if it declared one) via 'source.property.<id>'.",
       ),
   })
   .describe(
