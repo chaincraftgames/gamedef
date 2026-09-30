@@ -204,7 +204,7 @@ export const ActionInputSchema = z
           filter: ConditionExpressionSchema.optional().describe(
             "Infix expression to filter eligible players. " +
               "Evaluated per-player. Available paths: 'player.property.<id>', 'player.inventory.<id>.count'. " +
-              "Example: 'player.property.isActive == true and player.inventory.hand.count > 0'. " +
+              "Example: 'not player.property.eliminated and count(player.inventory.hand) > 0'. " +
               "Runtime computes valid options and sends them to UX.",
           ),
         }).describe(

@@ -13,10 +13,8 @@
  * Key design decisions:
  * - Players can hold multiple roles simultaneously at runtime.
  * - Assignment METHOD and assignment TIMING are independent axes.
- * - The reserved role id "incapacitated" has engine-level semantics: players
- *   holding this role are automatically excluded from sub-flow participation.
- *   Games that need player elimination define this role (method: "effect") rather
- *   than setting a boolean flag.
+ * - Player elimination is NOT a role: use the built-in player.property.eliminated
+ *   (see the state module).
  *
  * TODO (revisit): NFT-gated roles — a player may only be eligible to choose a
  *   role if they own a particular NFT (e.g., a character card earned in a
@@ -138,7 +136,7 @@ export const RoleVisibilitySchema = z
         .optional()
         .describe(
           "Event or condition that reveals this role to all players. " +
-            "Examples: 'player is incapacitated', 'game-end', 'challenge-resolution'. " +
+            "Examples: 'player is eliminated', 'game-end', 'challenge-resolution'. " +
             "Role revelation is modeled as a visibility-change event, not a static property.",
         ),
     }),
@@ -157,9 +155,7 @@ export const RoleDefinitionSchema = z
     id: IdentifierSchema.describe(
         "Unique identifier for this role. Referenced in flow conditions " +
           "(e.g., startingPlayer: role(dealer)), action eligibility " +
-          "(e.g., eligiblePlayers: role(mafia)), and turn order. " +
-          "The reserved id 'incapacitated' has engine-level semantics: players holding " +
-          "this role are automatically excluded from sub-flow participation.",
+          "(e.g., eligiblePlayers: role(mafia)), and turn order.",
       ),
     description: z
       .string()
@@ -193,9 +189,8 @@ export const PlayersModuleSchema = z
       .optional()
       .describe(
         "Roles defined by this game spec. Omit entirely if the game has no role distinctions. " +
-          "To support player elimination or incapacitation, include a role with id 'incapacitated' " +
-          "and method 'effect'. The engine will automatically exclude incapacitated players " +
-          "from sub-flow participation. " +
+          "Do not model player elimination as a role — use the built-in " +
+          "player.property.eliminated. " +
           "Note: players may also hold roles defined outside this spec (e.g., from expansion " +
           "or persistent-token auxiliary specs) — those use the same RoleDefinition schema " +
           "and are merged by the engine at runtime. This array is not the exhaustive universe " +

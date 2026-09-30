@@ -26,13 +26,6 @@ state:
           kind: string
         default: ""
         description: Player ID of the player who made the current bid. Empty string = no bid yet.
-      - id: activePlayers
-        type:
-          kind: number
-          min: 0
-        default:
-          fromPlayerCount: true
-        description: Number of players still in the game. Game ends when this reaches 1.
       - id: challengeMade
         type:
           kind: boolean
@@ -47,13 +40,6 @@ state:
         description: >-
           Player ID of the loser of the most recent challenge. Set by
           resolveChallenge; used by eliminateDie to remove the correct die.
-  player:
-    properties:
-      - id: isActive
-        type:
-          kind: boolean
-        default: true
-        description: Whether this player is still in the game (has at least one die).
 
 gamepieceTypes:
   types:
@@ -169,11 +155,12 @@ effects:
         inventory: "game:unassigned"
 
     - id: checkElimination
-      kind: custom
-      description: >-
-        For each player: if their playerCup contains 0 dice, set
-        player.property.isActive to false and decrement
-        game.property.activePlayers by 1.
+      kind: set-state
+      path: player.property.eliminated
+      value: true
+      target:
+        kind: matching
+        condition: "count(player.inventory.playerCup) == 0"
 
 actions:
   actions:
@@ -260,14 +247,14 @@ flow:
         - ref: rollAllDice    # initial roll before the first round
     winConditions:
       - rule: condition
-        condition: "player.property.isActive == true"
+        condition: "not player.property.eliminated"
         onVictory:
           - kind: message
             to: all
             template: "{{game.winners[0]}} wins Liar's Dice — the last player with dice remaining!"
     children:
       - kind: loop              # game loop — runs until one player remains
-        endCondition: "game.property.activePlayers <= 1"
+        endCondition: "countPlayers(not player.property.eliminated) <= 1"
         children:
           - kind: loop          # bidding loop — players bid until someone challenges
             endCondition: "game.property.challengeMade == true"

@@ -22,6 +22,10 @@
  *   before any effects run.
  * - There is no `team` state scope at this time — model team state as game properties
  *   with a naming convention (e.g. `team1Score`, `team2Score`) until that scope is needed.
+ * - Every player has a built-in boolean `player.property.eliminated` (default false).
+ *   Do not declare it. Set it true via set-state to eliminate a player: the engine skips
+ *   their turns. Eliminated players remain visible to expressions, targets, messages, and
+ *   win conditions — filter explicitly (e.g. `not player.property.eliminated`) when needed.
  *
  * @example Liar's Dice — bid tracking and elimination
  * ```yaml
@@ -34,14 +38,8 @@
  *       - id: currentBidFace
  *         type: { kind: number, min: 0, max: 6 }
  *         default: 0
- *       - id: activePlayers
- *         type: { kind: number, min: 0 }
- *         default: { fromPlayerCount: true }
- *   player:
- *     properties:
- *       - id: isActive
- *         type: { kind: boolean }
- *         default: true
+ * # Elimination uses the built-in player.property.eliminated; remaining players are
+ * # counted with countPlayers(not player.property.eliminated).
  */
 
 import { z } from "zod";
@@ -245,15 +243,31 @@ export const GameStateSchema = z
 // Player-scoped state
 // ---------------------------------------------------------------------------
 
+/** Built-in player properties provided by the engine; authors must not declare them. */
+export const RESERVED_PLAYER_PROPERTY_IDS = ["eliminated"] as const;
+
 export const PlayerStateSchema = z
   .object({
     properties: z
       .array(StatePropertySchema)
       .min(1)
+      .refine(
+        (props) =>
+          !props.some((p) =>
+            (RESERVED_PLAYER_PROPERTY_IDS as readonly string[]).includes(p.id),
+          ),
+        {
+          message:
+            "'eliminated' is a built-in player property — do not declare it. " +
+            "Reference it as player.property.eliminated.",
+        },
+      )
       .describe(
         "Per-player properties. The engine maintains one value per player. " +
           "In preconditions and effects, player.property.<id> resolves to the " +
-          "acting player's value unless a player selector is specified.",
+          "acting player's value unless a player selector is specified. " +
+          "Built-in (do not declare): 'eliminated' (boolean, default false) — set it true " +
+          "to eliminate a player; the engine skips eliminated players' turns.",
       ),
   })
   .describe("State variables scoped per-player. One value per player instance.");

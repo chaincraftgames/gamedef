@@ -889,7 +889,7 @@ export const MessageRecipientSchema = z
   .describe(
     "Who receives the message. " +
       "'actor': the player whose action triggered this effect. " +
-      "'all': every active player. " +
+      "'all': every player, including eliminated players. " +
       "'opponents': all players except the actor. " +
       "'role:<id>': all players assigned the named role (e.g., 'role:dealer'). " +
       "Any other string: a specific player ID. " +
@@ -934,7 +934,7 @@ export const RevealEffectSchema = z
     to: MessageRecipientSchema.describe(
       "Who can see the revealed pieces. " +
         "'actor': only the player whose turn it is. " +
-        "'all': every active player. " +
+        "'all': every player, including eliminated players. " +
         "'opponents': all players except the actor. " +
         "'role:<id>': only players with the named role. " +
         "Any other string: a specific player ID.",
@@ -1448,7 +1448,7 @@ export const PlayerTargetSchema = z
             "Available paths: 'player.property.<id>' (stored and computed state properties), " +
             "'player.inventory.<id>.count' (total piece count in a player-scoped inventory). " +
             "Example: 'player.property.roundsWon >= 3' or " +
-            "'player.inventory.hand.count > 0 and player.property.isActive == true'.",
+            "'count(player.inventory.hand) > 0 and not player.property.eliminated'.",
         ),
       })
       .describe(
@@ -1487,11 +1487,11 @@ export const PlayerTargetSchema = z
  * path: game.property.currentBidQuantity
  * value: { param: quantity }
  * ```
- * @example Eliminate the acting player
+ * @example Eliminate the acting player (built-in property; engine skips their turns)
  * ```yaml
  * kind: set-state
- * path: player.property.isActive
- * value: false
+ * path: player.property.eliminated
+ * value: true
  * ```
  * @example Deal 2 damage to a chosen opponent
  * ```yaml

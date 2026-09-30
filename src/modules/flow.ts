@@ -71,6 +71,30 @@
  * one more turn: the loop exits when turn order comes back to the triggering
  * player. The condition is not re-evaluated during the final round.
  *
+ * **Ending the game vs. deciding the winner — always declare BOTH:**
+ * - A loop `endCondition`/`count` decides WHEN the game stops. It never picks a winner.
+ * - Root `winConditions` decide WHO won. They run once after the root completes;
+ *   there is no turn in progress, so `actor.*` is meaningless there. Rules are
+ *   evaluated once per player with that player bound as `player.*`.
+ * - An endCondition without winConditions ends the game with no winners.
+ * Common pairings:
+ *   Last player standing:
+ *     endCondition: "countPlayers(not player.property.eliminated) <= 1"
+ *     winConditions: [{ rule: condition, condition: "not player.property.eliminated" }]
+ *   First to N points, others get one more turn, highest wins:
+ *     checkAfter: turn, finalRound: true, endCondition: "actor.property.score >= N"
+ *     winConditions: [{ rule: ranking, property: player.property.score }]
+ *   Fixed rounds, highest wins:
+ *     count: N
+ *     winConditions: [{ rule: ranking, property: player.property.score }]
+ *   Deck runs out, objective decides:
+ *     endCondition: "count(game.inventory.deck) == 0"
+ *     winConditions: [{ rule: condition, condition: "count(player.inventory.escaped) >= 1" }]
+ * Player elimination is the built-in `player.property.eliminated` flag (set via
+ * set-state). It only removes the player from turn order — it does not end the
+ * game or pick a winner; declare those as above.
+ * Full pattern catalogue and gaps: gamedef/docs/game-end-patterns.md
+ *
  * @example Liar's Dice — game setup in root onEnter, then looping bidding rounds
  * ```yaml
  * root:
@@ -90,7 +114,7 @@
  *       timeout: 15000
  *   children:
  *     - kind: loop
- *       endCondition: "game.property.activePlayers <= 1"
+ *       endCondition: "countPlayers(not player.property.eliminated) <= 1"
  *       children:
  *         - kind: turn
  *           actor: active-player
@@ -947,10 +971,11 @@ const RankingWinConditionSchema = z.object({
 const ConditionWinConditionSchema = z.object({
   rule: z.literal("condition"),
   condition: ConditionExpressionSchema.describe(
-    "Infix expression evaluated per player when the game ends. " +
-      "Available paths: 'player.property.<id>', 'player.inventory.<id>.count'. " +
+    "Infix expression evaluated once per player when the game ends; 'player.*' is the " +
+      "player being evaluated. 'actor.*' is INVALID here — no turn is in progress at game end. " +
+      "Available paths: 'player.property.<id>', 'count(player.inventory.<id>)', 'game.property.<id>'. " +
       "All players for whom this evaluates to true are declared winners. " +
-      "Example: 'player.property.isActive == true'",
+      "Example: 'not player.property.eliminated'",
   ),
   ...onVictoryField,
 });
@@ -1035,7 +1060,7 @@ export const WinConditionSchema = z
  *       - ref: deal-dice        # runs once at game start
  *   children:
  *     - kind: loop
- *       endCondition: "game.property.activePlayers <= 1"
+ *       endCondition: "countPlayers(not player.property.eliminated) <= 1"
  *       hooks:
  *         onEnter:
  *           - ref: roll-all-dice
