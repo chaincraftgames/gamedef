@@ -154,7 +154,7 @@ export const RoleDefinitionSchema = z
   .object({
     id: IdentifierSchema.describe(
         "Unique identifier for this role. Referenced in flow conditions " +
-          "(e.g., startingPlayer: role(dealer)), action eligibility " +
+          "(e.g., startingPlayer: { role: dealer }), action eligibility " +
           "(e.g., eligiblePlayers: role(mafia)), and turn order.",
       ),
     description: z

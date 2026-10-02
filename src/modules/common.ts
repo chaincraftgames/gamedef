@@ -289,3 +289,97 @@ export const PropertyTypeSchema = z.discriminatedUnion("kind", [
 );
 
 export type PropertyType = z.infer<typeof PropertyTypeSchema>;
+
+/**
+ * A structured reference to a per-player state value, used to rank players
+ * (ranked turn order, highest/lowest player selectors).
+ * Two kinds: a named property on the player, or a count of items in a player's inventory.
+ *
+ * @example
+ * ```yaml
+ * { playerProperty: gold }
+ * { playerInventory: hand }
+ * { playerInventory: hand, ofType: goldCoin }
+ * ```
+ */
+export const PlayerStateRefSchema = z
+  .union([
+    z
+      .object({
+        playerProperty: z
+          .string()
+          .describe(
+            "ID of a property on the player gamepiece. " +
+              "Forward reference to a mutable property defined on the player type in gamepiece-types.",
+          ),
+      })
+      .describe("Rank players by a named property value on each player."),
+    z
+      .object({
+        playerInventory: z
+          .string()
+          .describe(
+            "ID of a player-scoped inventory. " +
+              "Forward reference to an inventory with scope: player in the inventories module.",
+          ),
+        ofType: z
+          .string()
+          .optional()
+          .describe(
+            "If provided, only count pieces of this gamepiece type ID within the inventory. " +
+              "Omit to count all pieces regardless of type.",
+          ),
+      })
+      .describe("Rank players by the number of pieces in a named inventory, optionally filtered by type."),
+  ])
+  .describe(
+    "A structured reference to a per-player state value. " +
+      "Evaluated per player when the turn order or selector is resolved. " +
+      "Use 'playerProperty' for a scalar value, 'playerInventory' for an inventory count.",
+  );
+
+const OffsetField = {
+  offset: z.number().int().min(1).optional().describe(
+    "Step this many non-eliminated players past the selected player in turn direction. " +
+      "offset: 1 = the player to the selected player's left (e.g. dealer's left).",
+  ),
+};
+
+/**
+ * Selects exactly one player. Used by turn startingPlayer and actor { player }.
+ *
+ * @example
+ * ```yaml
+ * startingPlayer: first
+ * startingPlayer: { stateRef: game.property.roundLoser }
+ * startingPlayer: { role: dealer, offset: 1 }
+ * startingPlayer: { where: "count(player.inventory.firstPlayerMarker) > 0" }
+ * startingPlayer: { lowest: { playerProperty: coins } }
+ * ```
+ */
+export const PlayerSelectorSchema = z
+  .union([
+    z.literal("first").describe("Seat 1."),
+    z.literal("random").describe("A random non-eliminated player."),
+    z.object({ stateRef: z.string(), ...OffsetField }).strict().describe(
+      "The player whose ID is stored at this game property (e.g. game.property.roundLoser). " +
+        "If that player is eliminated, the next non-eliminated player in turn direction is used. " +
+        "Empty value = seat 1.",
+    ),
+    z.object({ role: z.string(), ...OffsetField }).strict().describe(
+      "The first non-eliminated player in seat order holding this role.",
+    ),
+    z.object({ where: ConditionExpressionSchema, ...OffsetField }).strict().describe(
+      "The first non-eliminated player in seat order for whom this expression is true, " +
+        "with the candidate bound as `player`. Example: \"count(player.inventory.firstPlayerMarker) > 0\".",
+    ),
+    z.object({ highest: PlayerStateRefSchema, ...OffsetField }).strict().describe(
+      "The non-eliminated player with the highest value; ties go to the earliest seat.",
+    ),
+    z.object({ lowest: PlayerStateRefSchema, ...OffsetField }).strict().describe(
+      "The non-eliminated player with the lowest value; ties go to the earliest seat.",
+    ),
+  ])
+  .describe("Selects exactly one player. Falls back to seat 1 when nothing matches. Eliminated players are never selected.");
+
+export type PlayerSelector = z.infer<typeof PlayerSelectorSchema>;

@@ -258,9 +258,10 @@ flow:
         children:
           - kind: loop          # bidding loop — players bid until someone challenges
             endCondition: "game.property.challengeMade == true"
+            checkAfter: "turn"
             children:
               - kind: turn
-                actor: active-player
+                actor: all-players
                 turnOrder:
                   kind: seat
                   direction: clockwise
@@ -271,8 +272,8 @@ flow:
                       ref: makeBid
                     - kind: action
                       ref: challenge
-          - kind: turn          # review turn — any active player starts the next round
-            actor: active-player
+          - kind: turn          # review turn — TODO: actor { player: { stateRef: game.property.roundLoser } }
+            actor: all-players
             grammar:
               kind: action
               ref: startNextRound

@@ -35,7 +35,7 @@ function makeAction(id: string, effectRef?: string) {
 /** A minimal valid turn node (no availableActions) */
 const DUMMY_TURN = {
   kind: "turn",
-  actor: "active-player",
+  actor: "all-players",
   grammar: { kind: "action", ref: "dummy" },
 };
 

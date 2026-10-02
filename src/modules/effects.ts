@@ -128,11 +128,11 @@ export const GamepieceSelectorSchema = z
       ])
       .optional()
       .describe(
-        "Dynamic player targeting. When present, overrides the default active-player context " +
+        "Dynamic player targeting. When present, overrides the default acting-player context " +
           "and selects pieces from the named player's instance of the inventory. " +
           "Use { stateRef } for state-driven targeting (e.g., roundLoser). " +
           "Use { param } for action-input-driven targeting (e.g., chosen opponent). " +
-          "Omit to use the default context (active player for player-scoped inventories, " +
+          "Omit to use the default context (acting player for player-scoped inventories, " +
           "game context for game-scoped inventories).",
       ),
     inventory: z
@@ -232,7 +232,7 @@ export const InventoryTargetSchema = z
       .optional()
       .describe(
         "Dynamic player targeting for the destination inventory. " +
-          "When present, overrides the default active-player context. " +
+          "When present, overrides the default acting-player context. " +
           "Use { stateRef } for state-driven targeting or { param } for action-input targeting.",
       ),
     inventory: z

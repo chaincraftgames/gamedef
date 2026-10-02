@@ -117,10 +117,11 @@
  *       endCondition: "countPlayers(not player.property.eliminated) <= 1"
  *       children:
  *         - kind: turn
- *           actor: active-player
+ *           actor: all-players
  *           turnOrder:
  *             kind: seat
  *             direction: clockwise
+ *             startingPlayer: { stateRef: game.property.roundLoser }
  *           grammar:
  *             kind: choice
  *             passable: true
@@ -173,8 +174,14 @@
  */
 
 import { z } from "zod";
-import { EffectCallsSchema } from "./effects.js";
-import { ConditionExpressionSchema, IdentifierSchema, IntRangeSchema } from "./common.js";
+import { EffectCallsSchema } from "#gamedef/modules/effects.js";
+import {
+  ConditionExpressionSchema,
+  IdentifierSchema,
+  IntRangeSchema,
+  PlayerSelectorSchema,
+  PlayerStateRefSchema,
+} from "#gamedef/modules/common.js";
 
 // ---------------------------------------------------------------------------
 // Flow hooks (effects triggered at structural boundaries)
@@ -198,95 +205,21 @@ const FlowHooksSchema = z
 // ---------------------------------------------------------------------------
 
 /**
- * A structured reference to a per-player state value, used for ranking or ordering players.
- * Two kinds: a named property on the player, or a count of items in a player's inventory.
- *
- * @example
- * ```yaml
- * { playerProperty: gold }
- * { playerInventory: hand }
- * { playerInventory: hand, ofType: goldCoin }
- * ```
- */
-const PlayerStateRefSchema = z
-  .union([
-    z
-      .object({
-        playerProperty: z
-          .string()
-          .describe(
-            "ID of a property on the player gamepiece. " +
-              "Forward reference to a mutable property defined on the player type in gamepiece-types.",
-          ),
-      })
-      .describe("Rank players by a named property value on each player."),
-    z
-      .object({
-        playerInventory: z
-          .string()
-          .describe(
-            "ID of a player-scoped inventory. " +
-              "Forward reference to an inventory with scope: player in the inventories module.",
-          ),
-        ofType: z
-          .string()
-          .optional()
-          .describe(
-            "If provided, only count pieces of this gamepiece type ID within the inventory. " +
-              "Omit to count all pieces regardless of type.",
-          ),
-      })
-      .describe("Rank players by the number of pieces in a named inventory, optionally filtered by type."),
-  ])
-  .describe(
-    "A structured reference to a per-player state value. " +
-      "Evaluated per player at the time turn order is established. " +
-      "Use 'playerProperty' for a scalar value, 'playerInventory' for an inventory count.",
-  );
-
-/**
- * Who acts first within a seat-order (clockwise/counter-clockwise) turn order.
- * Determines the starting point of the rotation; all other players follow in seat order.
- * If you want the full turn sequence determined by a state property, use 'ranked' instead.
- *
- * @example
- * ```yaml
- * startingPlayer: first           # seat 1 always starts
- * startingPlayer: last-winner     # winner of last round starts
- * startingPlayer: { role: dealer }
- * ```
- */
-const StartingPlayerSchema = z
-  .union([
-    z.literal("first").describe("The first seat position always starts."),
-    z.literal("last-winner").describe(
-      "The player who won (or triggered end condition of) the last round starts. " +
-        "Engine tracks the last winner automatically.",
-    ),
-    z.object({ role: z.string() }).describe("The player holding this role ID starts."),
-  ])
-  .describe(
-    "Determines which player acts first in a seat-ordered turn structure. " +
-      "All other players follow in clockwise or counter-clockwise seat order from that player. " +
-      "To order ALL turns by a state property (not just the starting point), use 'ranked' instead.",
-  );
-
-/**
  * Declares the order in which players take turns within a sequential context.
  *
  * Three kinds:
  * - `seat`    — clockwise or counter-clockwise from a configurable starting player.
- *               Starting player can be fixed, role-based, or state-determined.
+ *               Starting player can be fixed, random, role-based, or state-determined.
  * - `ranked`  — players sorted by a state property ascending or descending.
  *               E.g., player with most gold goes last; ties broken by seat order.
  * - `explicit`— fixed list of player IDs for games with named seats.
  *
- * @example Clockwise from the dealer role
+ * @example Clockwise from the player to the left of the dealer
  * ```yaml
  * turnOrder:
  *   kind: seat
  *   direction: clockwise
- *   startingPlayer: { role: dealer }
+ *   startingPlayer: { role: dealer, offset: 1 }
  * ```
  * @example Richest player goes last (ascending = poorest first)
  * ```yaml
@@ -323,16 +256,18 @@ const TurnOrderSchema = z
         kind: z.literal("seat"),
         direction: z
           .enum(["clockwise", "counter-clockwise"])
-          .describe("Direction around the table after the starting player acts."),
-        startingPlayer: StartingPlayerSchema.optional().describe(
-          "Who acts first. Defaults to the current active player if omitted. " +
-            "Can rotate each round by referencing a role (e.g., dealer) that is " +
-            "reassigned via an onComplete hook.",
+          .describe(
+            "Direction around the table after the starting player acts.",
+          ),
+        startingPlayer: PlayerSelectorSchema.optional().describe(
+          "Who acts first. Defaults to seat 1. Evaluated once when the turn node starts; " +
+            "later players follow in seat order.",
         ),
       })
       .describe(
         "Seat-order turns: clockwise or counter-clockwise from a configurable starting player. " +
-          "The starting player can be fixed, role-based, or chosen by a player state property. " +
+          "The starting player can be fixed, random, role-based, state-determined, or chosen by a " +
+          "per-player expression or ranking (see startingPlayer). " +
           "After the starting player acts, the engine follows seat order until all players have acted.",
       ),
 
@@ -362,7 +297,9 @@ const TurnOrderSchema = z
         players: z
           .array(z.string())
           .min(2)
-          .describe("Ordered list of player IDs. Use for games with named, fixed seats (e.g., bridge: north/east/south/west)."),
+          .describe(
+            "Ordered list of player IDs. Use for games with named, fixed seats (e.g., bridge: north/east/south/west).",
+          ),
       })
       .describe(
         "Fixed explicit turn order. The same list is used every round. " +
@@ -382,8 +319,9 @@ const TurnOrderSchema = z
 
 const ActorSpecSchema = z
   .union([
-    z.literal("active-player").describe("The currently active player (tracked by the engine)."),
-    z.literal("all-players").describe("Every player acts (regardless of role)."),
+    z
+      .literal("all-players")
+      .describe("Every non-eliminated player participates (regardless of role)."),
     z
       .object({
         roles: z
@@ -396,9 +334,37 @@ const ActorSpecSchema = z
               "e.g., { roles: [principal-investigator, investigator] } excludes the moderator.",
           ),
       })
-      .describe("Only players holding at least one of the listed roles act in this node."),
+      .describe(
+        "Only players holding at least one of the listed roles act in this node.",
+      ),
+    z
+      .object({
+        where: ConditionExpressionSchema.describe(
+          "Per-player infix expression with the candidate bound as `player`. " +
+            "Re-evaluated before each turn, so a player who stops matching mid-node " +
+            "(e.g. folds) gets no further turns. Example: \"not player.property.folded\". " +
+            "For temporary exclusion use your own property — player.property.eliminated " +
+            "means out of the game and affects end conditions.",
+        ),
+      })
+      .strict()
+      .describe("Only players for whom the expression is true act in this node."),
+    z
+      .object({
+        player: PlayerSelectorSchema.describe(
+          "Selects the single acting player. " +
+            "Example: { stateRef: game.property.roundLoser }.",
+        ),
+      })
+      .strict()
+      .describe(
+        "Exactly one player acts, chosen by the selector. Do not combine with turnOrder.",
+      ),
   ])
-  .describe("Specifies which player(s) are the actors in a flow node.");
+  .describe(
+    "Which players participate in this node. Eliminated players never participate. " +
+      "The order in which participants act is set by turnOrder.",
+  );
 
 // ---------------------------------------------------------------------------
 // Turn grammar (recursive — what one player does within their turn)
@@ -454,7 +420,9 @@ export const TurnGrammarNodeSchema: z.ZodType<TurnGrammarNode> = z.lazy(() =>
           kind: z.literal("action"),
           ref: z
             .string()
-            .describe("ID of the action to take. Forward reference to the actions module."),
+            .describe(
+              "ID of the action to take. Forward reference to the actions module.",
+            ),
         })
         .describe("Take a specific named action."),
 
@@ -484,17 +452,23 @@ export const TurnGrammarNodeSchema: z.ZodType<TurnGrammarNode> = z.lazy(() =>
             ),
           select: z
             .union([
-              z.literal("all").describe("Player MUST activate every matching piece's slot."),
-              z.literal("any").describe(
-                "Player MAY activate any subset of matching pieces' slots, including none. " +
-                  "Covers 'play cards from hand' patterns.",
-              ),
+              z
+                .literal("all")
+                .describe("Player MUST activate every matching piece's slot."),
+              z
+                .literal("any")
+                .describe(
+                  "Player MAY activate any subset of matching pieces' slots, including none. " +
+                    "Covers 'play cards from hand' patterns.",
+                ),
               IntRangeSchema.describe(
                 "Player must activate a number of pieces' slots within this inclusive range. " +
                   "{ min: 2, max: 2 } = exactly 2. { max: 3 } = up to 3. { min: 1 } = at least 1.",
               ),
             ])
-            .describe("How many pieces' slots the player must or may activate."),
+            .describe(
+              "How many pieces' slots the player must or may activate.",
+            ),
         })
         .describe(
           "Offer the player activation of a named slot on gamepieces in an inventory. " +
@@ -508,7 +482,9 @@ export const TurnGrammarNodeSchema: z.ZodType<TurnGrammarNode> = z.lazy(() =>
           steps: z
             .array(TurnGrammarNodeSchema)
             .min(2)
-            .describe("Ordered steps. Each step must be completed before the next begins."),
+            .describe(
+              "Ordered steps. Each step must be completed before the next begins.",
+            ),
         })
         .describe(
           "Ordered list of grammar steps, all of which must be taken in order. " +
@@ -554,20 +530,28 @@ export const TurnGrammarNodeSchema: z.ZodType<TurnGrammarNode> = z.lazy(() =>
           body: TurnGrammarNodeSchema.describe("The grammar node to repeat."),
           count: z
             .union([
-              z.number().int().min(1).describe("Repeat exactly this many times."),
+              z
+                .number()
+                .int()
+                .min(1)
+                .describe("Repeat exactly this many times."),
               IntRangeSchema.describe(
                 "Repeat a variable number of times within this inclusive range. " +
                   "{ max: 3 } = up to 3 times. { min: 1, max: 3 } = between 1 and 3 times. " +
                   "The body should include a pass option when max > min.",
               ),
-              z.literal("until-pass").describe(
-                "Repeat until the player passes. " +
-                  "The body must be a passable choice (passable: true). " +
-                  "Also acts as a subflow exit signal: if all players consecutively pass, " +
-                  "the enclosing phase or negotiation ends.",
-              ),
+              z
+                .literal("until-pass")
+                .describe(
+                  "Repeat until the player passes. " +
+                    "The body must be a passable choice (passable: true). " +
+                    "Also acts as a subflow exit signal: if all players consecutively pass, " +
+                    "the enclosing phase or negotiation ends.",
+                ),
             ])
-            .describe("How many times to repeat: exact count, inclusive range, or 'until-pass'."),
+            .describe(
+              "How many times to repeat: exact count, inclusive range, or 'until-pass'.",
+            ),
         })
         .describe(
           "Repeat a grammar node a fixed number of times or until the player passes. " +
@@ -583,18 +567,35 @@ export const TurnGrammarNodeSchema: z.ZodType<TurnGrammarNode> = z.lazy(() =>
 // TypeScript type (needed for recursive z.ZodType annotation above)
 export type TurnGrammarNode =
   | { kind: "action"; ref: string }
-  | { kind: "slot"; inventory: string; slot: string; ofType?: string; select: "all" | "any" | { min?: number; max?: number } }
+  | {
+      kind: "slot";
+      inventory: string;
+      slot: string;
+      ofType?: string;
+      select: "all" | "any" | { min?: number; max?: number };
+    }
   | { kind: "sequence"; steps: TurnGrammarNode[] }
-  | { kind: "choice"; options: TurnGrammarNode[]; pick?: number; passable?: boolean }
-  | { kind: "repeat"; body: TurnGrammarNode; count: number | { min?: number; max?: number } | "until-pass" };
+  | {
+      kind: "choice";
+      options: TurnGrammarNode[];
+      pick?: number;
+      passable?: boolean;
+    }
+  | {
+      kind: "repeat";
+      body: TurnGrammarNode;
+      count: number | { min?: number; max?: number } | "until-pass";
+    };
 
 // "until-pass": end when all eligible players have consecutively passed
 const FlowEndConditionSchema = z.union([
   ConditionExpressionSchema,
-  z.literal("until-pass").describe(
-    "End when all eligible players have consecutively passed. " +
-      "Each turn grammar should include passable choices so players can signal pass.",
-  ),
+  z
+    .literal("until-pass")
+    .describe(
+      "End when all eligible players have consecutively passed. " +
+        "Each turn grammar should include passable choices so players can signal pass.",
+    ),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -607,7 +608,7 @@ const FlowEndConditionSchema = z.union([
  * Three kinds:
  * - `loop`         — sequential children, repeating until count or endCondition. The root
  *                    must be a loop. Nest loops for sub-rounds, phases, etc.
- * - `turn`         — one player's turn (or a cycle through multiple players via turnOrder).
+ * - `turn`         — participating players take turns one at a time, in turnOrder.
  * - `simultaneous` — all actors submit independently; outcomes revealed together.
  *
  * All kinds accept `id?`, `label?`, `interruptWindows?`, and `hooks?`.
@@ -627,7 +628,10 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
             .describe(
               "Optional unique identifier. Set when referenced by action 'availableInSubflows'.",
             ),
-          label: z.string().optional().describe("Human-readable name shown in the UI."),
+          label: z
+            .string()
+            .optional()
+            .describe("Human-readable name shown in the UI."),
           count: z
             .number()
             .int()
@@ -703,12 +707,17 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
       z
         .object({
           kind: z.literal("turn"),
-          id: IdentifierSchema.optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
-          label: z.string().optional().describe("Human-readable name shown in the UI."),
+          id: IdentifierSchema.optional().describe(
+            "Optional identifier. Set when referenced by 'availableInSubflows'.",
+          ),
+          label: z
+            .string()
+            .optional()
+            .describe("Human-readable name shown in the UI."),
           actor: ActorSpecSchema,
           turnOrder: TurnOrderSchema.optional().describe(
-            "How to cycle through actors when more than one participates. " +
-              "Only meaningful if actor is not 'active-player'. Defaults to clockwise seat order.",
+            "Order in which participating players take turns. " +
+              "Defaults to clockwise seat order from seat 1. Not allowed with actor { player }.",
           ),
           grammar: TurnGrammarNodeSchema.describe(
             "What the acting player does on their turn. Compose sequence/choice/repeat as needed.",
@@ -718,7 +727,9 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
             .int()
             .min(0)
             .optional()
-            .describe("Time limit in milliseconds per turn. Engine enforces auto-pass on timeout."),
+            .describe(
+              "Time limit in milliseconds per turn. Engine enforces auto-pass on timeout.",
+            ),
           interruptWindows: z
             .array(InterruptWindowSchema)
             .optional()
@@ -729,7 +740,8 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
           hooks: FlowHooksSchema.optional(),
         })
         .describe(
-          "One player's turn (or sequential turns for multiple players via turnOrder). " +
+          "Participating players take turns one at a time in turnOrder, each running the grammar once. " +
+            "Use actor { player } for a turn taken by exactly one player. " +
             "The actor takes actions according to the grammar.",
         ),
 
@@ -737,8 +749,13 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
       z
         .object({
           kind: z.literal("simultaneous"),
-          id: IdentifierSchema.optional().describe("Optional identifier. Set when referenced by 'availableInSubflows'."),
-          label: z.string().optional().describe("Human-readable name shown in the UI."),
+          id: IdentifierSchema.optional().describe(
+            "Optional identifier. Set when referenced by 'availableInSubflows'.",
+          ),
+          label: z
+            .string()
+            .optional()
+            .describe("Human-readable name shown in the UI."),
           actor: ActorSpecSchema.describe("Which player(s) participate."),
           grammar: TurnGrammarNodeSchema.describe(
             "What each actor does. All actors act independently and without seeing each other's choices. " +
@@ -763,7 +780,9 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
             .int()
             .min(0)
             .optional()
-            .describe("Per-actor time limit in milliseconds. Engine auto-submits pass on timeout."),
+            .describe(
+              "Per-actor time limit in milliseconds. Engine auto-submits pass on timeout.",
+            ),
           interruptWindows: z
             .array(InterruptWindowSchema)
             .optional()
@@ -785,9 +804,41 @@ export const FlowNodeSchema: z.ZodType<FlowNode> = z.lazy(() =>
 
 // TypeScript type (needed for recursive z.ZodType annotation above)
 export type FlowNode =
-  | { kind: "loop"; id?: string; label?: string; count?: number; endCondition?: unknown; checkAfter?: "iteration" | "turn"; finalRound?: boolean; writeIterationTo?: string; children: FlowNode[]; interruptWindows?: unknown[]; hooks?: _FlowHooks }
-  | { kind: "turn"; id?: string; label?: string; actor: ActorSpec; turnOrder?: TurnOrder; grammar: TurnGrammarNode; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks }
-  | { kind: "simultaneous"; id?: string; label?: string; actor: ActorSpec; grammar: TurnGrammarNode; endCondition?: unknown; timeLimit?: number; interruptWindows?: unknown[]; hooks?: _FlowHooks };
+  | {
+      kind: "loop";
+      id?: string;
+      label?: string;
+      count?: number;
+      endCondition?: unknown;
+      checkAfter?: "iteration" | "turn";
+      finalRound?: boolean;
+      writeIterationTo?: string;
+      children: FlowNode[];
+      interruptWindows?: unknown[];
+      hooks?: _FlowHooks;
+    }
+  | {
+      kind: "turn";
+      id?: string;
+      label?: string;
+      actor: ActorSpec;
+      turnOrder?: TurnOrder;
+      grammar: TurnGrammarNode;
+      timeLimit?: number;
+      interruptWindows?: unknown[];
+      hooks?: _FlowHooks;
+    }
+  | {
+      kind: "simultaneous";
+      id?: string;
+      label?: string;
+      actor: ActorSpec;
+      grammar: TurnGrammarNode;
+      endCondition?: unknown;
+      timeLimit?: number;
+      interruptWindows?: unknown[];
+      hooks?: _FlowHooks;
+    };
 
 // ---------------------------------------------------------------------------
 // Interrupt window (orthogonal event layer)
@@ -803,7 +854,7 @@ export type FlowNode =
  * ```yaml
  * kind: turn
  * id: attackTurn
- * actor: active-player
+ * actor: all-players
  * grammar: { kind: action, ref: attack }
  * interruptWindows:
  *   - id: counterSpell
@@ -852,8 +903,14 @@ export const InterruptWindowSchema = z
     eligiblePlayers: z
       .union([
         z.literal("all").describe("All players may respond."),
-        z.literal("opponents").describe("All players except the one whose action triggered the effect."),
-        z.literal("non-active").describe("All players who are not the current active player."),
+        z
+          .literal("opponents")
+          .describe(
+            "All players except the one whose action triggered the effect.",
+          ),
+        z
+          .literal("non-active")
+          .describe("All players who are not the current active player."),
         z
           .object({
             roles: z
@@ -864,7 +921,9 @@ export const InterruptWindowSchema = z
                   "Any-of semantics. Forward references to role IDs in the players module.",
               ),
           })
-          .describe("Only players holding at least one of the listed roles may respond."),
+          .describe(
+            "Only players holding at least one of the listed roles may respond.",
+          ),
       ])
       .describe("Which players are offered the interrupt window."),
     actions: z
@@ -1066,13 +1125,16 @@ export const WinConditionSchema = z
  *           - ref: roll-all-dice
  *       children:
  *         - kind: turn
- *           actor: active-player
+ *           actor: all-players
  * ```
  */
 export const GameRootSchema = z
   .object({
     kind: z.literal("game"),
-    label: z.string().optional().describe("Human-readable name for the game root. Optional."),
+    label: z
+      .string()
+      .optional()
+      .describe("Human-readable name for the game root. Optional."),
     hooks: FlowHooksSchema.optional().describe(
       "Lifecycle hooks. 'onEnter' is the canonical location for one-time game setup " +
         "(deal opening hands, assign roles, initialize state). " +
