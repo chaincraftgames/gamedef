@@ -505,6 +505,67 @@ describe("Catalog binding validation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Catalog property source
+// ---------------------------------------------------------------------------
+
+describe("Catalog property source validation", () => {
+  const creatureType = {
+    ...makePiecetype("creature"),
+    properties: [
+      { id: "power", type: { kind: "number" }, mutable: true, visibility: "always" },
+      { id: "frozen", type: { kind: "boolean" }, mutable: true, source: "runtime", default: false, visibility: "always" },
+    ],
+  };
+
+  it("passes when the catalog sets only catalog-source properties", () => {
+    const result = validate(
+      minimalSpec({
+        gamepieceTypes: { types: [creatureType] },
+        catalog: { entries: [{ typeId: "creature", properties: { power: 3 } }] },
+      }),
+    );
+    expect(result.errors.filter((e) => e.path.includes("properties"))).toHaveLength(0);
+  });
+
+  it("errors when the catalog sets a source: runtime property", () => {
+    const result = validate(
+      minimalSpec({
+        gamepieceTypes: { types: [creatureType] },
+        catalog: { entries: [{ typeId: "creature", properties: { frozen: true } }] },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("source: runtime"))).toBe(true);
+  });
+
+  it("errors when the catalog sets an undeclared property", () => {
+    const result = validate(
+      minimalSpec({
+        gamepieceTypes: { types: [creatureType] },
+        catalog: { entries: [{ typeId: "creature", properties: { bogus: 1 } }] },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("bogus"))).toBe(true);
+  });
+
+  it("errors when a source: runtime property is not mutable", () => {
+    const result = validate(
+      minimalSpec({
+        gamepieceTypes: {
+          types: [{
+            ...makePiecetype("creature"),
+            properties: [{ id: "x", type: { kind: "boolean" }, mutable: false, source: "runtime", visibility: "always" }],
+          }],
+        },
+      }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("mutable: false"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Duplicate passive IDs
 // ---------------------------------------------------------------------------
 

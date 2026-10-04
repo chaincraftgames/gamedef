@@ -113,11 +113,12 @@ export const PropertyVisibilitySchema = z
  * default: 10
  * visibility: always
  * ```
- * @example Engine-only flag — never shown to players
+ * @example Engine-only flag — never shown to players, never set in the catalog
  * ```yaml
  * id: activatedThisTurn
  * type: { kind: boolean }
  * mutable: true
+ * source: runtime
  * default: false
  * visibility: never
  * ```
@@ -144,7 +145,21 @@ export const GamepiecePropertySchema = z
           "false = static; value comes from the catalog instance and never changes " +
           "(e.g., card name, mana cost, die face count). " +
           "true = runtime-tracked; engine initializes from 'default' and effects can modify it " +
-          "(e.g., hitPoints, exhausted, chargeCount).",
+          "(e.g., hitPoints, exhausted, chargeCount). " +
+          "Says nothing about who authors the starting value \u2014 see 'source'.",
+      ),
+    source: z
+      .enum(["catalog", "runtime"])
+      .optional()
+      .describe(
+        "Where this property's starting value comes from. Defaults to 'catalog'. " +
+          "'catalog': card data authored per piece instance; catalog entries may set it " +
+          "(e.g., power, defense, mana cost). Independent of 'mutable' — a catalog property " +
+          "may still change during play. " +
+          "'runtime': engine-managed state (e.g., frozen, activatedThisTurn); initialized " +
+          "from 'default' and never set in the catalog. Must be mutable: true. " +
+          "Catalog editors hide runtime properties." +
+          "Defaults to 'catalog' if not specified."
       ),
     default: z
       .any()

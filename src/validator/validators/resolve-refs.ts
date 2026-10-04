@@ -11,6 +11,8 @@
  *   - gamepieceTypes[*].mechanics[*] (charges).action → must exist in actions.actions[*].id
  *   - gamepieceTypes[*].mechanics[*].availableInSubflows[*] → must exist as a flow node ID
  *   - catalog.entries[*].typeId        → must exist in gamepieceTypes.types[*].id
+ *   - catalog.entries[*].properties keys → must be declared on the type and not source: runtime
+ *   - gamepieceTypes[*].properties[*]  → source: runtime requires mutable: true
  */
 
 import type { ModularGameSpec } from "#gamedef/index.js";
@@ -79,6 +81,15 @@ export class ResolveRefsValidator implements SpecValidator {
 
     // gamepieceTypes: piece-level mechanic action refs and availableInSubflows refs
     spec.gamepieceTypes?.types?.forEach((type, ti) => {
+      type.properties?.forEach((prop, pi) => {
+        if (prop.source === "runtime" && !prop.mutable) {
+          errors.push({
+            path: `gamepieceTypes.types[${ti}].properties[${pi}].source`,
+            message: `Property "${prop.id}" has source: runtime but mutable: false; runtime state must be mutable`,
+          });
+        }
+      });
+
       (type.mechanics as unknown[] | undefined)?.forEach((mechanic, mi) => {
         if (!mechanic || typeof mechanic !== "object") return;
         const m = mechanic as Record<string, unknown>;
@@ -132,6 +143,24 @@ export class ResolveRefsValidator implements SpecValidator {
           ? ((pieceType as Record<string, unknown>).passiveSlots as Array<{ id: string }>).map((s) => s.id)
           : [],
       );
+
+      if (entry.properties && pieceType) {
+        const declared = new Map((pieceType.properties ?? []).map((p) => [p.id, p]));
+        for (const key of Object.keys(entry.properties)) {
+          const prop = declared.get(key);
+          if (!prop) {
+            errors.push({
+              path: `catalog.entries[${ei}].properties.${key}`,
+              message: `Property "${key}" not declared on gamepiece type "${entry.typeId}"`,
+            });
+          } else if (prop.source === "runtime") {
+            errors.push({
+              path: `catalog.entries[${ei}].properties.${key}`,
+              message: `Property "${key}" has source: runtime and cannot be set in the catalog`,
+            });
+          }
+        }
+      }
 
       if (entry.actionBindings) {
         for (const [slotId, value] of Object.entries(entry.actionBindings)) {

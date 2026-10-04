@@ -83,6 +83,7 @@ gamepieceTypes:
           label: Frozen
           type: { kind: boolean }
           mutable: true
+          source: runtime
           visibility: always
           default: false
       # The two binding sites for this game's passives. Declared in the
