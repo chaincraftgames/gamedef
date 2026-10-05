@@ -54,7 +54,7 @@ function makeInventory(id: string) {
   return {
     id,
     scope: { kind: "game" },
-    accepts: ["any-piece"],
+    accepts: ["anyPiece"],
     visibility: "always",
   };
 }
@@ -76,9 +76,9 @@ describe("Reference resolution", () => {
   it("passes when effect ref exists", () => {
     const result = validate(
       minimalSpec({
-        effects: { effects: [makeEffect("my-effect")] },
+        effects: { effects: [makeEffect("myEffect")] },
         actions: {
-          actions: [makeAction("my-action", "my-effect")],
+          actions: [makeAction("myAction", "myEffect")],
         },
       }),
     );
@@ -88,26 +88,26 @@ describe("Reference resolution", () => {
   it("errors when effect ref is missing", () => {
     const result = validate(
       minimalSpec({
-        effects: { effects: [makeEffect("my-effect")] },
+        effects: { effects: [makeEffect("myEffect")] },
         actions: {
-          actions: [makeAction("my-action", "nonexistent-effect")],
+          actions: [makeAction("myAction", "nonexistentEffect")],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("nonexistent-effect"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("nonexistentEffect"))).toBe(true);
   });
 
   it("errors when catalog typeId not in gamepieceTypes", () => {
     const result = validate(
       minimalSpec({
         catalog: {
-          entries: [{ typeId: "ghost-type", quantity: 1 }],
+          entries: [{ typeId: "ghostType", quantity: 1 }],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("ghost-type"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("ghostType"))).toBe(true);
   });
 
   it("errors when dominant-gamepiece evaluationInventory not in inventories", () => {
@@ -116,7 +116,7 @@ describe("Reference resolution", () => {
         mechanics: [
           {
             kind: "chaincraft:dominant-gamepiece",
-            evaluationInventory: "nonexistent-pile",
+            evaluationInventory: "nonexistentPile",
             winnerToState: "game.property.roundWinner",
             rules: [
               {
@@ -130,20 +130,21 @@ describe("Reference resolution", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("nonexistent-pile"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("nonexistentPile"))).toBe(true);
   });
 
   it("passes when dominant-gamepiece evaluationInventory exists", () => {
     const result = validate(
       minimalSpec({
-        inventories: { types: [makeInventory("trick-pile")] },
+        inventories: { types: [makeInventory("trickPile")] },
         mechanics: [
           {
             kind: "chaincraft:dominant-gamepiece",
-            suitProperty: "suit",
-            rankProperty: "rank",
-            rankOrder: ["2", "3", "A"],
-            evaluationInventory: "trick-pile",
+            evaluationInventory: "trickPile",
+            winnerToState: "game.property.roundWinner",
+            rules: [
+              { kind: "comparison", property: "rank", order: ["2", "3", "A"], direction: "highest" },
+            ],
           },
         ],
       }),
@@ -200,15 +201,15 @@ describe("Duplicate ID detection", () => {
           root: {
             kind: "game",
             children: [
-              { kind: "loop", id: "phase-a", count: 3, children: [DUMMY_TURN] },
-              { kind: "loop", id: "phase-a", count: 3, children: [DUMMY_TURN] },
+              { kind: "loop", id: "phaseA", count: 3, children: [DUMMY_TURN] },
+              { kind: "loop", id: "phaseA", count: 3, children: [DUMMY_TURN] },
             ],
           },
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes('"phase-a"'))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes('"phaseA"'))).toBe(true);
   });
 
   it("passes when all IDs are unique", () => {
@@ -256,7 +257,7 @@ describe("Flow structural integrity", () => {
           root: {
             kind: "game",
             children: [
-              { kind: "loop", endCondition: { var: "game.property.gameOver" }, children: [DUMMY_TURN] },
+              { kind: "loop", endCondition: "game.property.gameOver == true", children: [DUMMY_TURN] },
             ],
           },
         },
@@ -337,9 +338,9 @@ describe("Flow structural integrity", () => {
     const result = validate(
       minimalSpec({
         flow: { root: makeGameRoot() },
-        effects: { effects: [makeEffect("use-e")] },
+        effects: { effects: [makeEffect("useE")] },
         actions: {
-          actions: [makeAction("use-ability", "use-e")],
+          actions: [makeAction("useAbility", "useE")],
         },
         gamepieceTypes: {
           types: [
@@ -352,8 +353,8 @@ describe("Flow structural integrity", () => {
                   chargeType: "energy",
                   maxCharges: 3,
                   count: 1,
-                  action: "use-ability",
-                  availableInSubflows: ["nonexistent-phase"],
+                  action: "useAbility",
+                  availableInSubflows: ["nonexistentPhase"],
                 },
               ],
             },
@@ -362,7 +363,7 @@ describe("Flow structural integrity", () => {
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("nonexistent-phase"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("nonexistentPhase"))).toBe(true);
   });
 });
 
@@ -375,44 +376,44 @@ describe("Catalog binding validation", () => {
     const result = validate(
       minimalSpec({
         gamepieceTypes: {
-          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "playEffect" }] }],
         },
         catalog: {
-          entries: [{ typeId: "card", actionBindings: { "play-effect": "nonexistent-action" } }],
+          entries: [{ typeId: "card", actionBindings: { "playEffect": "nonexistentAction" } }],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("nonexistent-action"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("nonexistentAction"))).toBe(true);
   });
 
   it("errors when actionBindings key does not match an actionSlot", () => {
     const result = validate(
       minimalSpec({
         effects: { effects: [makeEffect("e1")] },
-        actions: { actions: [makeAction("play-strike", "e1")] },
+        actions: { actions: [makeAction("playStrike", "e1")] },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "playEffect" }] }],
         },
         catalog: {
-          entries: [{ typeId: "card", actionBindings: { "bad-slot": "play-strike" } }],
+          entries: [{ typeId: "card", actionBindings: { "badSlot": "playStrike" } }],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("bad-slot"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("badSlot"))).toBe(true);
   });
 
   it("passes when actionBindings key and value are valid", () => {
     const result = validate(
       minimalSpec({
         effects: { effects: [makeEffect("e1")] },
-        actions: { actions: [makeAction("play-strike", "e1")] },
+        actions: { actions: [makeAction("playStrike", "e1")] },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "playEffect" }] }],
         },
         catalog: {
-          entries: [{ typeId: "card", actionBindings: { "play-effect": "play-strike" } }],
+          entries: [{ typeId: "card", actionBindings: { "playEffect": "playStrike" } }],
         },
       }),
     );
@@ -425,15 +426,15 @@ describe("Catalog binding validation", () => {
       minimalSpec({
         effects: { effects: [makeEffect("e1")] },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "wornPassive", enabledIn: ["equipped"] }] }],
         },
         catalog: {
-          entries: [{ typeId: "equipment", passiveBindings: { "worn-passive": "nonexistent-passive" } }],
+          entries: [{ typeId: "equipment", passiveBindings: { "wornPassive": "nonexistentPassive" } }],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("nonexistent-passive"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("nonexistentPassive"))).toBe(true);
   });
 
   it("errors when passiveBindings key does not match a passiveSlot", () => {
@@ -442,21 +443,21 @@ describe("Catalog binding validation", () => {
         effects: {
           effects: [makeEffect("e1")],
           passives: [{
-            id: "armor-absorb",
+            id: "armorAbsorb",
             trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           }],
         },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "wornPassive", enabledIn: ["equipped"] }] }],
         },
         catalog: {
-          entries: [{ typeId: "equipment", passiveBindings: { "bad-slot": "armor-absorb" } }],
+          entries: [{ typeId: "equipment", passiveBindings: { "badSlot": "armorAbsorb" } }],
         },
       }),
     );
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("bad-slot"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("badSlot"))).toBe(true);
   });
 
   it("passes when passiveBindings key and value are valid", () => {
@@ -465,16 +466,16 @@ describe("Catalog binding validation", () => {
         effects: {
           effects: [makeEffect("e1")],
           passives: [{
-            id: "armor-absorb",
+            id: "armorAbsorb",
             trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           }],
         },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "worn-passive" }] }],
+          types: [{ ...makePiecetype("equipment"), passiveSlots: [{ id: "wornPassive", enabledIn: ["equipped"] }] }],
         },
         catalog: {
-          entries: [{ typeId: "equipment", passiveBindings: { "worn-passive": "armor-absorb" } }],
+          entries: [{ typeId: "equipment", passiveBindings: { "wornPassive": "armorAbsorb" } }],
         },
       }),
     );
@@ -487,13 +488,13 @@ describe("Catalog binding validation", () => {
       minimalSpec({
         effects: { effects: [makeEffect("e1")] },
         gamepieceTypes: {
-          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "play-effect" }] }],
+          types: [{ ...makePiecetype("card"), actionSlots: [{ id: "playEffect" }] }],
         },
         catalog: {
           entries: [{
             typeId: "card",
             actionBindings: {
-              "play-effect": { label: "Inline Play", effects: [{ ref: "e1" }] },
+              "playEffect": { label: "Inline Play", effects: [{ ref: "e1" }] },
             },
           }],
         },

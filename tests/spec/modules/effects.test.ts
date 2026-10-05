@@ -57,155 +57,155 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     effects: [
       // move: draw dice from cup to player tray
       {
-        id: "draw-die",
+        id: "drawDie",
         kind: "move",
-        from: { inventory: "dice-cup", select: "top" },
-        to: { inventory: "player-tray" },
+        from: { inventory: "diceCup", select: "top" },
+        to: { inventory: "playerTray" },
       },
 
       // move: discard a die (deterministic selection; player choice handled via action input)
       {
-        id: "discard-die",
+        id: "discardDie",
         kind: "move",
-        from: { inventory: "player-tray", select: "random", count: 1 },
-        to: { inventory: "discard-pile", at: { kind: "stack-top" } },
+        from: { inventory: "playerTray", select: "random", count: 1 },
+        to: { inventory: "discardPile", at: { kind: "stack-top" } },
       },
 
       // move: steal a die from another player (random selection)
       {
-        id: "steal-die",
+        id: "stealDie",
         kind: "move",
-        from: { inventory: "opponent-tray", select: "random", count: 1 },
-        to: { inventory: "player-tray" },
+        from: { inventory: "opponentTray", select: "random", count: 1 },
+        to: { inventory: "playerTray" },
       },
 
       // move: move all dice to specific indexed position
       {
-        id: "stack-dice",
+        id: "stackDice",
         kind: "move",
-        from: { inventory: "player-tray", select: "all" },
-        to: { inventory: "display-rack", at: { kind: "line-index", index: 0 } },
+        from: { inventory: "playerTray", select: "all" },
+        to: { inventory: "displayRack", at: { kind: "line-index", index: 0 } },
       },
 
       // move: place die at a row+col position (grid inventory)
       {
-        id: "place-on-grid",
+        id: "placeOnGrid",
         kind: "move",
-        from: { inventory: "player-tray", select: "top" },
-        to: { inventory: "grid-board", at: { kind: "grid-cell", row: 1, col: 2 } },
+        from: { inventory: "playerTray", select: "top" },
+        to: { inventory: "gridBoard", at: { kind: "grid-cell", row: 1, col: 2 } },
       },
 
       // flip: reveal all dice in player tray
       {
-        id: "reveal-dice",
+        id: "revealDice",
         kind: "flip",
-        pieces: { inventory: "player-tray", select: "all" },
+        pieces: { inventory: "playerTray", select: "all" },
         to: "face-up",
       },
 
       // flip: hide a single die
       {
-        id: "hide-die",
+        id: "hideDie",
         kind: "flip",
-        pieces: { inventory: "player-tray", select: "top" },
+        pieces: { inventory: "playerTray", select: "top" },
         to: "face-down",
       },
 
       // update: increment score by 1 (delta)
       {
-        id: "score-point",
+        id: "scorePoint",
         kind: "update",
-        pieces: { inventory: "score-tracker", select: "top" },
+        pieces: { inventory: "scoreTracker", select: "top" },
         property: "points",
         value: { delta: 1 },
       },
 
       // update: set score to literal 0
       {
-        id: "reset-score",
+        id: "resetScore",
         kind: "update",
-        pieces: { inventory: "score-tracker", select: "top" },
+        pieces: { inventory: "scoreTracker", select: "top" },
         property: "points",
         value: 0,
       },
 
       // update: toggle a boolean flag
       {
-        id: "toggle-active",
+        id: "toggleActive",
         kind: "update",
-        pieces: { inventory: "player-markers", select: "top" },
+        pieces: { inventory: "playerMarkers", select: "top" },
         property: "isActive",
         value: { toggle: true },
       },
 
       // update: set string property
       {
-        id: "mark-challenger",
+        id: "markChallenger",
         kind: "update",
-        pieces: { inventory: "player-markers", select: "top" },
+        pieces: { inventory: "playerMarkers", select: "top" },
         property: "status",
         value: "challenger",
       },
 
       // update: set boolean property to literal true
       {
-        id: "mark-eliminated",
+        id: "markEliminated",
         kind: "update",
-        pieces: { inventory: "player-markers", select: "top" },
+        pieces: { inventory: "playerMarkers", select: "top" },
         property: "eliminated",
         value: true,
       },
 
       // shuffle: randomise the dice cup
       {
-        id: "shuffle-cup",
+        id: "shuffleCup",
         kind: "shuffle",
-        inventory: "dice-cup",
+        inventory: "diceCup",
       },
 
       // distribute: deal 5 dice to each player
       {
-        id: "deal-dice",
+        id: "dealDice",
         kind: "distribute",
-        from: { inventory: "dice-cup", select: "top" },
-        to: { scope: "all-players", inventory: "player-tray" },
+        from: { inventory: "diceCup", select: "top" },
+        to: { scope: "all-players", inventory: "playerTray" },
         count: 5,
       },
 
       // distribute: deal to active player only
       {
-        id: "deal-extra-die",
+        id: "dealExtraDie",
         kind: "distribute",
-        from: { inventory: "dice-cup", select: "top" },
-        to: { scope: "active-player", inventory: "player-tray" },
+        from: { inventory: "diceCup", select: "top" },
+        to: { scope: "active-player", inventory: "playerTray" },
         count: 1,
       },
 
       // roll: roll all dice in a player's tray
       {
-        id: "roll-all-dice",
+        id: "rollAllDice",
         kind: "roll",
-        pieces: { inventory: "player-tray", select: "all" },
+        pieces: { inventory: "playerTray", select: "all" },
       },
 
       // roll: roll a specific count
       {
-        id: "roll-two-dice",
+        id: "rollTwoDice",
         kind: "roll",
-        pieces: { inventory: "player-tray", select: "random", count: 2 },
+        pieces: { inventory: "playerTray", select: "random", count: 2 },
       },
 
       // orient: rotate a tile clockwise
       {
-        id: "rotate-tile",
+        id: "rotateTile",
         kind: "orient",
-        pieces: { inventory: "board-tiles", select: "top" },
+        pieces: { inventory: "boardTiles", select: "top" },
         to: "rotate-cw",
       },
 
       // custom: complex resolution logic
       {
-        id: "resolve-challenge",
+        id: "resolveChallenge",
         kind: "custom",
         description:
           "Count all dice showing the bid face value across all players. " +
@@ -216,16 +216,16 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
 
       // cancel-effect: reactive negate
       {
-        id: "block-steal",
+        id: "blockSteal",
         kind: "cancel-effect",
       },
 
       // move: ofType filter
       {
-        id: "remove-wildcards",
+        id: "removeWildcards",
         kind: "move",
-        from: { inventory: "player-tray", select: "all", ofType: "wildcard-die" },
-        to: { inventory: "discard-pile" },
+        from: { inventory: "playerTray", select: "all", ofType: "wildcardDie" },
+        to: { inventory: "discardPile" },
       },
     ],
   };
@@ -238,19 +238,19 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
   it("preserves effect ids", () => {
     const result = ok(validModule);
     const ids = result.effects.map((e) => e.id);
-    expect(ids).toContain("resolve-challenge");
-    expect(ids).toContain("deal-dice");
-    expect(ids).toContain("block-steal");
+    expect(ids).toContain("resolveChallenge");
+    expect(ids).toContain("dealDice");
+    expect(ids).toContain("blockSteal");
   });
 
   it("parses move effect with bottom select", () => {
     const result = ok({
       effects: [
         {
-          id: "bury-card",
+          id: "buryCard",
           kind: "move",
-          from: { inventory: "player-hand", select: "top" },
-          to: { inventory: "draw-deck", at: { kind: "stack-bottom" } },
+          from: { inventory: "playerHand", select: "top" },
+          to: { inventory: "drawDeck", at: { kind: "stack-bottom" } },
         },
       ],
     });
@@ -261,9 +261,9 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     const result = ok({
       effects: [
         {
-          id: "toggle-card",
+          id: "toggleCard",
           kind: "flip",
-          pieces: { inventory: "play-area", select: "top" },
+          pieces: { inventory: "playArea", select: "top" },
           to: "toggle",
         },
       ],
@@ -275,9 +275,9 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     const result = ok({
       effects: [
         {
-          id: "set-orientation",
+          id: "setOrientation",
           kind: "orient",
-          pieces: { inventory: "board-tiles", select: "top" },
+          pieces: { inventory: "boardTiles", select: "top" },
           to: 2,
         },
       ],
@@ -290,7 +290,7 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     // because named effects are self-contained — params are for inline call-site effects
     const result = EffectSchema.safeParse({
       kind: "update",
-      pieces: { inventory: "current-bid", select: "top" },
+      pieces: { inventory: "currentBid", select: "top" },
       property: "quantity",
       value: { param: "quantity" },
     });
@@ -299,7 +299,7 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
 
   it("parses cancel-effect as named effect", () => {
     const result = ok({
-      effects: [{ id: "negate-attack", kind: "cancel-effect" }],
+      effects: [{ id: "negateAttack", kind: "cancel-effect" }],
     });
     expect(result.effects[0].kind).toBe("cancel-effect");
   });
@@ -308,10 +308,10 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     const result = ok({
       effects: [
         {
-          id: "deal-team-cards",
+          id: "dealTeamCards",
           kind: "distribute",
-          from: { inventory: "draw-deck", select: "top" },
-          to: { scope: "all-teams", inventory: "team-hand" },
+          from: { inventory: "drawDeck", select: "top" },
+          to: { scope: "all-teams", inventory: "teamHand" },
           count: 3,
         },
       ],
@@ -323,10 +323,10 @@ describe("EffectsModuleSchema — Liar's Dice", () => {
     const result = ok({
       effects: [
         {
-          id: "deal-kill-card",
+          id: "dealKillCard",
           kind: "distribute",
-          from: { inventory: "game:unassigned", select: "top", ofType: "kill-card" },
-          to: { scope: "all-players", inventory: "player-hand", roles: ["mafia"] },
+          from: { inventory: "game:unassigned", select: "top", ofType: "killCard" },
+          to: { scope: "all-players", inventory: "playerHand", roles: ["mafia"] },
           count: 1,
         },
       ],
@@ -345,29 +345,29 @@ describe("EffectsModuleSchema — select by id", () => {
     const result = ok({
       effects: [
         {
-          id: "place-white-king",
+          id: "placeWhiteKing",
           kind: "move",
-          from: { inventory: "game:unassigned", select: { id: "white-king" } },
+          from: { inventory: "game:unassigned", select: { id: "whiteKing" } },
           to: { inventory: "board", at: { kind: "grid-cell", row: 1, col: "e" } },
         },
       ],
     });
     expect(result.effects[0].kind).toBe("move");
-    expect((result.effects[0] as any).from.select).toEqual({ id: "white-king" });
+    expect((result.effects[0] as any).from.select).toEqual({ id: "whiteKing" });
   });
 
   it("parses flip with select: { id }", () => {
     const result = ok({
       effects: [
         {
-          id: "reveal-king",
+          id: "revealKing",
           kind: "flip",
-          pieces: { inventory: "game:unassigned", select: { id: "white-king" } },
+          pieces: { inventory: "game:unassigned", select: { id: "whiteKing" } },
           to: "face-up",
         },
       ],
     });
-    expect((result.effects[0] as any).pieces.select).toEqual({ id: "white-king" });
+    expect((result.effects[0] as any).pieces.select).toEqual({ id: "whiteKing" });
   });
 });
 
@@ -385,7 +385,7 @@ describe("EffectsModuleSchema — rejections", () => {
       effects: [
         {
           kind: "shuffle",
-          inventory: "draw-deck",
+          inventory: "drawDeck",
           // missing id
         },
       ],
@@ -402,9 +402,9 @@ describe("EffectsModuleSchema — rejections", () => {
     fail({
       effects: [
         {
-          id: "bad-move",
+          id: "badMove",
           kind: "move",
-          to: { inventory: "player-hand" },
+          to: { inventory: "playerHand" },
         },
       ],
     });
@@ -414,9 +414,9 @@ describe("EffectsModuleSchema — rejections", () => {
     fail({
       effects: [
         {
-          id: "bad-update",
+          id: "badUpdate",
           kind: "update",
-          pieces: { inventory: "score-tracker", select: "top" },
+          pieces: { inventory: "scoreTracker", select: "top" },
           value: 1,
         },
       ],
@@ -427,7 +427,7 @@ describe("EffectsModuleSchema — rejections", () => {
     fail({
       effects: [
         {
-          id: "bad-distribute",
+          id: "badDistribute",
           kind: "distribute",
           from: { inventory: "deck", select: "top", count: 3 },
           to: { scope: "everyone", inventory: "hand" },
@@ -440,9 +440,9 @@ describe("EffectsModuleSchema — rejections", () => {
     fail({
       effects: [
         {
-          id: "bad-select",
+          id: "badSelect",
           kind: "roll",
-          pieces: { inventory: "dice-tray", select: "nearest" },
+          pieces: { inventory: "diceTray", select: "nearest" },
         },
       ],
     });
@@ -452,7 +452,7 @@ describe("EffectsModuleSchema — rejections", () => {
     fail({
       effects: [
         {
-          id: "bad-orient",
+          id: "badOrient",
           kind: "orient",
           pieces: { inventory: "tiles", select: "top" },
           orientation: 1.5,
@@ -468,14 +468,14 @@ describe("EffectsModuleSchema — rejections", () => {
 
 describe("EffectCallSchema", () => {
   it("accepts a ref call", () => {
-    const r = EffectCallSchema.safeParse({ ref: "shuffle-deck" });
+    const r = EffectCallSchema.safeParse({ ref: "shuffleDeck" });
     expect(r.success).toBe(true);
   });
 
   it("accepts an inline effect body", () => {
     const r = EffectCallSchema.safeParse({
       kind: "shuffle",
-      inventory: "draw-deck",
+      inventory: "drawDeck",
     });
     expect(r.success).toBe(true);
   });
@@ -483,7 +483,7 @@ describe("EffectCallSchema", () => {
   it("accepts an inline update with { param } value", () => {
     const r = EffectCallSchema.safeParse({
       kind: "update",
-      pieces: { inventory: "current-bid", select: "top" },
+      pieces: { inventory: "currentBid", select: "top" },
       property: "quantity",
       value: { param: "quantity" },
     });
@@ -499,9 +499,9 @@ describe("EffectCallSchema", () => {
 describe("EffectCallsSchema", () => {
   it("accepts a mixed list of refs and inline effects", () => {
     const r = EffectCallsSchema.safeParse([
-      { ref: "shuffle-deck" },
-      { kind: "roll", pieces: { inventory: "dice-tray", select: "all" } },
-      { ref: "deal-dice" },
+      { ref: "shuffleDeck" },
+      { kind: "roll", pieces: { inventory: "diceTray", select: "all" } },
+      { ref: "dealDice" },
     ]);
     expect(r.success).toBe(true);
   });
@@ -518,12 +518,12 @@ describe("EffectCallsSchema", () => {
 
 describe("EffectCallRefSchema", () => {
   it("accepts a valid ref", () => {
-    const r = EffectCallRefSchema.safeParse({ ref: "draw-card" });
+    const r = EffectCallRefSchema.safeParse({ ref: "drawCard" });
     expect(r.success).toBe(true);
   });
 
   it("rejects missing ref field", () => {
-    const r = EffectCallRefSchema.safeParse({ name: "draw-card" });
+    const r = EffectCallRefSchema.safeParse({ name: "drawCard" });
     expect(r.success).toBe(false);
   });
 });
@@ -765,14 +765,14 @@ describe("PropertyValueSchema — var references", () => {
 describe("EffectsModuleSchema — adjust effect", () => {
   it("parses adjust with delta adjustment as named effect", () => {
     const result = ok({
-      effects: [{ id: "reduce-damage", kind: "adjust", adjustment: { delta: 2 } }],
+      effects: [{ id: "reduceDamage", kind: "adjust", adjustment: { delta: 2 } }],
     });
     expect(result.effects[0].kind).toBe("adjust");
   });
 
   it("parses adjust with mult adjustment as named effect", () => {
     const result = ok({
-      effects: [{ id: "halve-damage", kind: "adjust", adjustment: { mult: 0.5 } }],
+      effects: [{ id: "halveDamage", kind: "adjust", adjustment: { mult: 0.5 } }],
     });
     expect(result.effects[0].kind).toBe("adjust");
   });

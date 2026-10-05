@@ -26,10 +26,10 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
     types: [
       // ---- scope: game, structure: stack, displayHint: pile ----
       {
-        id: "draw-deck",
+        id: "drawDeck",
         label: "Draw Deck",
         scope: { kind: "game" },
-        accepts: ["playing-card"],
+        accepts: ["playingCard"],
         visibility: "never",
         countVisibility: "always",
         structure: "stack",
@@ -39,20 +39,20 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- scope: game, structure: stack, no displayHint ----
       {
-        id: "discard-pile",
+        id: "discardPile",
         label: "Discard",
         scope: { kind: "game" },
-        accepts: ["playing-card"],
+        accepts: ["playingCard"],
         visibility: "always",
         structure: "stack",
       },
 
       // ---- scope: player (all), structure: none (default), displayHint: fan ----
       {
-        id: "player-hand",
+        id: "playerHand",
         label: "Hand",
         scope: { kind: "player" },
-        accepts: ["playing-card"],
+        accepts: ["playingCard"],
         visibility: "owner",
         displayHint: "fan",
         capacity: { max: 6 },
@@ -63,7 +63,7 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
         id: "crib",
         label: "Crib",
         scope: { kind: "player", role: "dealer" },
-        accepts: ["playing-card"],
+        accepts: ["playingCard"],
         visibility: "owner",
         countVisibility: "always",
         capacity: { min: 4, max: 4 },
@@ -72,26 +72,26 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- scope: team (all), structure: none ----
       {
-        id: "team-supply",
+        id: "teamSupply",
         label: "Team Supply",
         scope: { kind: "team" },
-        accepts: ["resource-token"],
+        accepts: ["resourceToken"],
         visibility: "always",
       },
 
       // ---- scope: team (role-restricted) ----
       {
-        id: "captain-reserve",
+        id: "captainReserve",
         scope: { kind: "team", role: "attacker" },
-        accepts: ["captain-piece"],
+        accepts: ["captainPiece"],
         visibility: "owner",
       },
 
       // ---- scope: piece, structure: none ----
       {
-        id: "card-attachment",
+        id: "cardAttachment",
         scope: { kind: "piece" },
-        accepts: ["effect-token"],
+        accepts: ["effectToken"],
         visibility: "always",
         capacity: { max: 3 },
         description: "Tokens attached directly to a card",
@@ -99,7 +99,7 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- structure: line (score track backing inventory) ----
       {
-        id: "score-track",
+        id: "scoreTrack",
         label: "Score Track",
         scope: { kind: "game" },
         accepts: ["peg"],
@@ -109,10 +109,10 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- structure: grid, gridDimensions ----
       {
-        id: "hex-board",
+        id: "hexBoard",
         label: "Hex Board",
         scope: { kind: "game" },
-        accepts: ["hex-tile"],
+        accepts: ["hexTile"],
         visibility: "always",
         structure: "grid",
         gridDimensions: { rows: 5, columns: 5 },
@@ -121,19 +121,19 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- structure: graph ----
       {
-        id: "region-map",
+        id: "regionMap",
         label: "Region Map",
         scope: { kind: "game" },
-        accepts: ["region-token"],
+        accepts: ["regionToken"],
         visibility: "always",
         structure: "graph",
       },
 
       // ---- visibility: revealed ----
       {
-        id: "face-down-reserve",
+        id: "faceDownReserve",
         scope: { kind: "game" },
-        accepts: ["playing-card"],
+        accepts: ["playingCard"],
         visibility: "revealed",
         structure: "stack",
         displayHint: "pile",
@@ -141,9 +141,9 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
       // ---- capacity: min only ----
       {
-        id: "minimum-pool",
+        id: "minimumPool",
         scope: { kind: "game" },
-        accepts: ["resource-token"],
+        accepts: ["resourceToken"],
         visibility: "always",
         capacity: { min: 1 },
       },
@@ -156,27 +156,27 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
   it("defaults structure to 'none' when omitted", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const hand = result.types.find((t) => t.id === "player-hand")!;
+    const hand = result.types.find((t) => t.id === "playerHand")!;
     expect(hand.structure).toBe("none");
   });
 
   it("preserves explicit structure values", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    expect(result.types.find((t) => t.id === "draw-deck")!.structure).toBe("stack");
-    expect(result.types.find((t) => t.id === "score-track")!.structure).toBe("line");
-    expect(result.types.find((t) => t.id === "hex-board")!.structure).toBe("grid");
-    expect(result.types.find((t) => t.id === "region-map")!.structure).toBe("graph");
+    expect(result.types.find((t) => t.id === "drawDeck")!.structure).toBe("stack");
+    expect(result.types.find((t) => t.id === "scoreTrack")!.structure).toBe("line");
+    expect(result.types.find((t) => t.id === "hexBoard")!.structure).toBe("grid");
+    expect(result.types.find((t) => t.id === "regionMap")!.structure).toBe("graph");
   });
 
   it("parses scope: game correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const deck = result.types.find((t) => t.id === "draw-deck")!;
+    const deck = result.types.find((t) => t.id === "drawDeck")!;
     expect(deck.scope).toEqual({ kind: "game" });
   });
 
   it("parses scope: player (all) correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const hand = result.types.find((t) => t.id === "player-hand")!;
+    const hand = result.types.find((t) => t.id === "playerHand")!;
     expect(hand.scope).toEqual({ kind: "player" });
   });
 
@@ -188,25 +188,25 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
   it("parses scope: team (all) correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const supply = result.types.find((t) => t.id === "team-supply")!;
+    const supply = result.types.find((t) => t.id === "teamSupply")!;
     expect(supply.scope).toEqual({ kind: "team" });
   });
 
   it("parses scope: team with role restriction correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const reserve = result.types.find((t) => t.id === "captain-reserve")!;
+    const reserve = result.types.find((t) => t.id === "captainReserve")!;
     expect(reserve.scope).toEqual({ kind: "team", role: "attacker" });
   });
 
   it("parses scope: piece correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const attachment = result.types.find((t) => t.id === "card-attachment")!;
+    const attachment = result.types.find((t) => t.id === "cardAttachment")!;
     expect(attachment.scope).toEqual({ kind: "piece" });
   });
 
   it("parses gridDimensions correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const board = result.types.find((t) => t.id === "hex-board")!;
+    const board = result.types.find((t) => t.id === "hexBoard")!;
     expect(board.gridDimensions).toEqual({ rows: 5, columns: 5 });
   });
 
@@ -221,32 +221,32 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
   it("parses countVisibility when present", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const deck = result.types.find((t) => t.id === "draw-deck")!;
+    const deck = result.types.find((t) => t.id === "drawDeck")!;
     expect(deck.countVisibility).toBe("always");
   });
 
   it("leaves countVisibility undefined when omitted", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const discard = result.types.find((t) => t.id === "discard-pile")!;
+    const discard = result.types.find((t) => t.id === "discardPile")!;
     expect(discard.countVisibility).toBeUndefined();
   });
 
   it("parses displayHint values correctly", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    expect(result.types.find((t) => t.id === "draw-deck")!.displayHint).toBe("pile");
-    expect(result.types.find((t) => t.id === "player-hand")!.displayHint).toBe("fan");
+    expect(result.types.find((t) => t.id === "drawDeck")!.displayHint).toBe("pile");
+    expect(result.types.find((t) => t.id === "playerHand")!.displayHint).toBe("fan");
   });
 
   it("preserves optional label and description", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    const deck = result.types.find((t) => t.id === "draw-deck")!;
+    const deck = result.types.find((t) => t.id === "drawDeck")!;
     expect(deck.label).toBe("Draw Deck");
     expect(deck.description).toBe("Shared draw deck for the whole game");
   });
 
   it("parses capacity with max only", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    expect(result.types.find((t) => t.id === "player-hand")!.capacity).toEqual({ max: 6 });
+    expect(result.types.find((t) => t.id === "playerHand")!.capacity).toEqual({ max: 6 });
   });
 
   it("parses capacity with min and max", () => {
@@ -256,7 +256,7 @@ describe("InventoriesModuleSchema — Cribbage Plus", () => {
 
   it("parses capacity with min only", () => {
     const result = InventoriesModuleSchema.parse(validModule);
-    expect(result.types.find((t) => t.id === "minimum-pool")!.capacity).toEqual({ min: 1 });
+    expect(result.types.find((t) => t.id === "minimumPool")!.capacity).toEqual({ min: 1 });
   });
 });
 

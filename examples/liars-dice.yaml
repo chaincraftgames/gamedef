@@ -40,6 +40,8 @@ state:
         description: >-
           Player ID of the loser of the most recent challenge. Set by
           resolveChallenge; used by eliminateDie to remove the correct die.
+          Kept between rounds: the loser (or the next seat if eliminated)
+          starts the next round. Empty before the first challenge = seat 1.
 
 gamepieceTypes:
   types:
@@ -122,11 +124,6 @@ effects:
       kind: set-state
       path: game.property.challengeMade
       value: false
-
-    - id: resetRoundLoser
-      kind: set-state
-      path: game.property.roundLoser
-      value: ""
 
     - id: setChallengeMade
       kind: set-state
@@ -236,7 +233,6 @@ actions:
         - ref: resetBidFace
         - ref: resetBidder
         - ref: resetChallengeMade
-        - ref: resetRoundLoser
 
 flow:
   root:
@@ -265,6 +261,7 @@ flow:
                 turnOrder:
                   kind: seat
                   direction: clockwise
+                  startingPlayer: { stateRef: game.property.roundLoser }
                 grammar:
                   kind: choice
                   options:
@@ -272,8 +269,8 @@ flow:
                       ref: makeBid
                     - kind: action
                       ref: challenge
-          - kind: turn          # review turn — TODO: actor { player: { stateRef: game.property.roundLoser } }
-            actor: all-players
+          - kind: turn          # review turn — the round loser (or next live seat) starts the next round
+            actor: { player: { stateRef: game.property.roundLoser } }
             grammar:
               kind: action
               ref: startNextRound

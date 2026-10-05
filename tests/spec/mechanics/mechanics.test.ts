@@ -51,20 +51,20 @@ describe("ChargesMechanicSchema", () => {
   const base = {
     kind: "chaincraft:charges",
     slotId: "mygame:energy-ability",
-    chargeType: "energy-counter",
+    chargeType: "energyCounter",
     maxCharges: 3,
     count: 2,
-    action: "convert-ore-to-gold",
+    action: "convertOreToGold",
   };
 
   it("parses minimal valid charges mechanic", () => {
     const r = okCharges(base);
     expect(r.kind).toBe("chaincraft:charges");
     expect(r.slotId).toBe("mygame:energy-ability");
-    expect(r.chargeType).toBe("energy-counter");
+    expect(r.chargeType).toBe("energyCounter");
     expect(r.maxCharges).toBe(3);
     expect(r.count).toBe(2);
-    expect(r.action).toBe("convert-ore-to-gold");
+    expect(r.action).toBe("convertOreToGold");
   });
 
   it("defaults depleteTo to game:unassigned", () => {
@@ -73,8 +73,8 @@ describe("ChargesMechanicSchema", () => {
   });
 
   it("accepts explicit depleteTo inventory", () => {
-    const r = okCharges({ ...base, depleteTo: "charge-discard" });
-    expect(r.depleteTo).toBe("charge-discard");
+    const r = okCharges({ ...base, depleteTo: "chargeDiscard" });
+    expect(r.depleteTo).toBe("chargeDiscard");
   });
 
   it("accepts optional label", () => {
@@ -83,12 +83,12 @@ describe("ChargesMechanicSchema", () => {
   });
 
   it("accepts availableInSubflows", () => {
-    const r = okCharges({ ...base, availableInSubflows: ["action-phase"] });
-    expect(r.availableInSubflows).toEqual(["action-phase"]);
+    const r = okCharges({ ...base, availableInSubflows: ["actionPhase"] });
+    expect(r.availableInSubflows).toEqual(["actionPhase"]);
   });
 
   it("rejects non-namespaced slotId", () => {
-    fail(ChargesMechanicSchema, { ...base, slotId: "no-namespace" });
+    fail(ChargesMechanicSchema, { ...base, slotId: "noNamespace" });
   });
 
   it("rejects count < 1", () => {
@@ -113,8 +113,8 @@ describe("ConversionMechanicSchema", () => {
   const base = {
     kind: "chaincraft:conversion",
     slotId: "mygame:smelt",
-    sources: [{ inventory: "ore-storage", count: 2 }],
-    targets: [{ inventory: "ingot-storage", count: 1 }],
+    sources: [{ inventory: "oreStorage", count: 2 }],
+    targets: [{ inventory: "ingotStorage", count: 1 }],
   };
 
   it("parses minimal valid conversion mechanic", () => {
@@ -130,11 +130,11 @@ describe("ConversionMechanicSchema", () => {
       kind: "chaincraft:conversion",
       slotId: "mygame:alchemise",
       sources: [
-        { inventory: "fire-essence", count: 1 },
-        { inventory: "water-essence", count: 1 },
+        { inventory: "fireEssence", count: 1 },
+        { inventory: "waterEssence", count: 1 },
       ],
       targets: [
-        { inventory: "steam-tokens", count: 1 },
+        { inventory: "steamTokens", count: 1 },
         { inventory: "residue", count: 1 },
       ],
     });
@@ -148,12 +148,12 @@ describe("ConversionMechanicSchema", () => {
   });
 
   it("accepts availableInSubflows", () => {
-    const r = okConversion({ ...base, availableInSubflows: ["action-phase"] });
-    expect(r.availableInSubflows).toEqual(["action-phase"]);
+    const r = okConversion({ ...base, availableInSubflows: ["actionPhase"] });
+    expect(r.availableInSubflows).toEqual(["actionPhase"]);
   });
 
   it("rejects non-namespaced slotId", () => {
-    fail(ConversionMechanicSchema, { ...base, slotId: "no-namespace" });
+    fail(ConversionMechanicSchema, { ...base, slotId: "noNamespace" });
   });
 
   it("rejects empty sources array", () => {
@@ -167,7 +167,7 @@ describe("ConversionMechanicSchema", () => {
   it("rejects leg with count < 1", () => {
     fail(ConversionMechanicSchema, {
       ...base,
-      sources: [{ inventory: "ore-storage", count: 0 }],
+      sources: [{ inventory: "oreStorage", count: 0 }],
     });
   });
 });
@@ -193,8 +193,8 @@ describe("ScoreTrackMechanicSchema", () => {
   });
 
   it("accepts optional id for multi-track games", () => {
-    const r = okScoreTrack({ ...base, id: "main-score" });
-    expect(r.id).toBe("main-score");
+    const r = okScoreTrack({ ...base, id: "mainScore" });
+    expect(r.id).toBe("mainScore");
   });
 
   it("accepts team scope", () => {
@@ -264,14 +264,18 @@ describe("DominantGamepieceMechanicSchema", () => {
     expect(r.rules).toHaveLength(2);
   });
 
-  it("accepts a dynamic dominant value via JsonLogic", () => {
+  it("accepts a dynamic dominant value via state path", () => {
     const r = okDominantGamepiece({
       ...base,
       rules: [
-        { kind: "dominant", property: "suit", dominantValue: { var: "game.property.declaredDominant" } },
+        { kind: "dominant", property: "suit", dominantValue: "game.property.declaredDominant" },
       ],
     });
-    expect(r.rules[0]).toMatchObject({ kind: "dominant" });
+    expect(r.rules[0]).toEqual({
+      kind: "dominant",
+      property: "suit",
+      dominantValue: "game.property.declaredDominant",
+    });
   });
 
   it("accepts winningPieceToState alongside winnerToState", () => {
@@ -319,10 +323,10 @@ describe("PieceMechanicSchema (union)", () => {
     const r = PieceMechanicSchema.parse({
       kind: "chaincraft:charges",
       slotId: "mygame:tap",
-      chargeType: "readiness-token",
+      chargeType: "readinessToken",
       maxCharges: 1,
       count: 1,
-      action: "deal-damage",
+      action: "dealDamage",
     });
     expect(r.kind).toBe("chaincraft:charges");
   });

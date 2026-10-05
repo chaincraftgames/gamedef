@@ -27,7 +27,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
     types: [
       // ---- card: attack/defense cards, face-down until played ----
       {
-        id: "combat-card",
+        id: "combatCard",
         category: "card",
         description: "An attack or defense card played during combat",
         hasFaceState: true,
@@ -67,23 +67,23 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
         ],
         actionSlots: [
           {
-            id: "card-ability",
+            id: "cardAbility",
             description: "Special ability on this card, if any",
-            availableInSubflows: ["combat-phase"],
+            availableInSubflows: ["combatPhase"],
           },
         ],
       },
 
       // ---- token: gold coins used as currency ----
       {
-        id: "gold-coin",
+        id: "goldCoin",
         category: "token",
         description: "A gold coin used to pay card costs",
       },
 
       // ---- token: damage marker placed on captain ----
       {
-        id: "damage-marker",
+        id: "damageMarker",
         category: "token",
         description: "Placed on a captain to track damage taken",
       },
@@ -137,12 +137,12 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
         inventorySlots: [
           {
             id: "hand",
-            inventoryTypeId: "player-hand",
+            inventoryTypeId: "playerHand",
             description: "Cards currently held by this captain",
           },
           {
             id: "gold",
-            inventoryTypeId: "gold-pool",
+            inventoryTypeId: "goldPool",
             description: "Gold coins available to spend",
           },
         ],
@@ -150,7 +150,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
 
       // ---- dice: d6 used for combat rolls ----
       {
-        id: "combat-die",
+        id: "combatDie",
         category: "dice",
         description: "Six-sided die rolled to resolve combat ties",
         faceCount: 6,
@@ -158,7 +158,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
 
       // ---- tile: a sea zone tile with 4-way orientation ----
       {
-        id: "sea-zone",
+        id: "seaZone",
         category: "tile",
         description: "A sea zone tile placed to build the battle map",
         orientationCount: 4,
@@ -182,18 +182,18 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
 
       // ---- board: the shared play area holding the battle grid ----
       {
-        id: "battle-map",
+        id: "battleMap",
         category: "board",
         description: "The shared play surface where sea zones and captains are placed",
         inventorySlots: [
           {
             id: "zones",
-            inventoryTypeId: "sea-zone-grid",
+            inventoryTypeId: "seaZoneGrid",
             description: "The grid of sea zone tiles",
           },
           {
-            id: "draw-pile",
-            inventoryTypeId: "combat-card-deck",
+            id: "drawPile",
+            inventoryTypeId: "combatCardDeck",
             description: "Shared draw pile for combat cards",
           },
         ],
@@ -207,7 +207,7 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
 
   it("applies defaults: hasFaceState=false, exhaustible=false, orientationCount=1", () => {
     const result = GamepieceTypesModuleSchema.parse(validModule);
-    const goldCoin = result.types.find((t) => t.id === "gold-coin")!;
+    const goldCoin = result.types.find((t) => t.id === "goldCoin")!;
     expect(goldCoin.hasFaceState).toBe(false);
     expect(goldCoin.exhaustible).toBe(false);
     expect(goldCoin.orientationCount).toBe(1);
@@ -215,16 +215,16 @@ describe("GamepieceTypesModuleSchema — Pirate Duel", () => {
 
   it("preserves explicit hasFaceState, exhaustible, and orientationCount", () => {
     const result = GamepieceTypesModuleSchema.parse(validModule);
-    const card = result.types.find((t) => t.id === "combat-card")!;
+    const card = result.types.find((t) => t.id === "combatCard")!;
     expect(card.hasFaceState).toBe(true);
     expect(card.exhaustible).toBe(true);
-    const tile = result.types.find((t) => t.id === "sea-zone")!;
+    const tile = result.types.find((t) => t.id === "seaZone")!;
     expect(tile.orientationCount).toBe(4);
   });
 
   it("preserves faceCount on dice", () => {
     const result = GamepieceTypesModuleSchema.parse(validModule);
-    const die = result.types.find((t) => t.id === "combat-die")!;
+    const die = result.types.find((t) => t.id === "combatDie")!;
     expect(die.faceCount).toBe(6);
   });
 });
@@ -402,23 +402,27 @@ describe("GamepieceTypesModuleSchema — passiveSlots", () => {
           id: "equipment",
           category: "token",
           passiveSlots: [
-            { id: "worn-passive", description: "The passive granted while this equipment is worn" },
+            {
+              id: "wornPassive",
+              description: "The passive granted while this equipment is worn",
+              enabledIn: ["equipmentSlot"],
+            },
           ],
         },
       ],
     });
-    expect(result.types[0].passiveSlots![0].id).toBe("worn-passive");
+    expect(result.types[0].passiveSlots![0].id).toBe("wornPassive");
   });
 
   it("accepts a piece type with multiple passive slots", () => {
     const result = GamepieceTypesModuleSchema.parse({
       types: [
         {
-          id: "dual-enchant",
+          id: "dualEnchant",
           category: "token",
           passiveSlots: [
-            { id: "primary-passive" },
-            { id: "secondary-passive" },
+            { id: "primaryPassive", enabledIn: ["field"] },
+            { id: "secondaryPassive", enabledIn: ["field"] },
           ],
         },
       ],
@@ -428,7 +432,7 @@ describe("GamepieceTypesModuleSchema — passiveSlots", () => {
 
   it("accepts a piece type with no passiveSlots", () => {
     const result = GamepieceTypesModuleSchema.parse({
-      types: [{ id: "plain-token", category: "token" }],
+      types: [{ id: "plainToken", category: "token" }],
     });
     expect(result.types[0].passiveSlots).toBeUndefined();
   });

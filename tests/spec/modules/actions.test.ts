@@ -6,7 +6,7 @@
  *   - ActionInputSchema: integer, float, string, boolean, enum, effect-originator types
  *   - ActionInput.validation (prose constraint)
  *   - ActionSchema: id, label, description, oncePerTurn, requiredRole
- *   - ActionSchema: availableInSubflows, preconditions (JSONLogic)
+ *   - ActionSchema: availableInSubflows, preconditions (infix expression)
  *   - ActionSchema: inputs + { param } resolution convention
  *   - ActionSchema: interrupt (subflow array)
  *   - ActionSchema: reactive { trigger, timing: before | after }
@@ -40,7 +40,7 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
     actions: [
       // Core bid action — exercises inputs, { param } convention, inline effects
       {
-        id: "make-bid",
+        id: "makeBid",
         label: "Make Bid",
         description: "Declare a quantity and face value for the current bid",
         inputs: [
@@ -51,7 +51,7 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
             validation: "Must be strictly higher than the current bid quantity unless face-value also increases",
           },
           {
-            id: "face-value",
+            id: "faceValue",
             type: { kind: "number", min: 1, max: 6 },
             label: "Face Value",
           },
@@ -59,54 +59,54 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         effects: [
           {
             kind: "update",
-            pieces: { inventory: "current-bid", select: "top" },
+            pieces: { inventory: "currentBid", select: "top" },
             property: "quantity",
             value: { param: "quantity" },
           },
           {
             kind: "update",
-            pieces: { inventory: "current-bid", select: "top" },
-            property: "face-value",
-            value: { param: "face-value" },
+            pieces: { inventory: "currentBid", select: "top" },
+            property: "faceValue",
+            value: { param: "faceValue" },
           },
         ],
       },
 
-      // Challenge action — preconditions (JSONLogic), named-effect ref
+      // Challenge action — preconditions (infix expression), named-effect ref
       {
         id: "challenge",
         label: "Challenge",
         description: "Call out the current bid as a lie",
-        preconditions: { "!=": [{ var: "game.inventory.current-bid.count" }, 0] },
-        effects: [{ ref: "resolve-challenge" }],
+        preconditions: "game.inventory.currentBid.count != 0",
+        effects: [{ ref: "resolveChallenge" }],
       },
 
       // Pass action — simple, no inputs
       {
         id: "pass",
         label: "Pass",
-        effects: [{ ref: "advance-turn" }],
+        effects: [{ ref: "advanceTurn" }],
       },
 
       // Roll dice — once per turn
       {
-        id: "roll-dice",
+        id: "rollDice",
         label: "Roll Dice",
         oncePerTurn: true,
         effects: [
-          { kind: "roll", pieces: { inventory: "player-tray", select: "all" } },
+          { kind: "roll", pieces: { inventory: "playerTray", select: "all" } },
         ],
       },
 
       // Role-gated action — requiredRoles
       {
-        id: "peek-bid",
+        id: "peekBid",
         label: "Peek at Bid",
         requiredRoles: ["spy"],
         effects: [
           {
             kind: "flip",
-            pieces: { inventory: "current-bid", select: "top" },
+            pieces: { inventory: "currentBid", select: "top" },
             to: "face-up",
           },
         ],
@@ -114,54 +114,49 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
 
       // Subflow-scoped action — availableInSubflows
       {
-        id: "exchange-die",
+        id: "exchangeDie",
         label: "Exchange Die",
-        availableInSubflows: ["trade-phase"],
+        availableInSubflows: ["tradePhase"],
         inputs: [
           {
-            id: "die-to-exchange",
-            type: { kind: "gamepiece-select", inventory: "player-tray", count: 1 },
+            id: "dieToExchange",
+            type: { kind: "gamepiece-select", inventory: "playerTray", count: 1 },
           },
         ],
         effects: [
           {
             kind: "move",
-            from: { inventory: "player-tray", select: { id: { param: "die-to-exchange" } } },
-            to: { inventory: "exchange-pool" },
+            from: { inventory: "playerTray", select: { id: { param: "dieToExchange" } } },
+            to: { inventory: "exchangePool" },
           },
         ],
       },
 
       // Compound precondition — boolean AND
       {
-        id: "buy-special-die",
+        id: "buySpecialDie",
         label: "Buy Special Die",
-        preconditions: {
-          and: [
-            { ">=": [{ var: "actor.property.coins" }, 3] },
-            { "!=": [{ var: "game.inventory.special-dice.count" }, 0] },
-          ],
-        },
+        preconditions: "actor.property.coins >= 3 and game.inventory.specialDice.count != 0",
         effects: [
-          { ref: "purchase-special-die" },
+          { ref: "purchaseSpecialDie" },
         ],
       },
 
       // Interrupt action — eligible during response-window subflow
       {
-        id: "block-steal",
+        id: "blockSteal",
         label: "Block Steal",
-        interrupt: ["response-window"],
+        interrupt: ["responseWindow"],
         effects: [{ kind: "cancel-effect" }],
       },
 
       // Reactive negate — before timing (cancel the triggering effect)
       {
-        id: "deflect-attack",
+        id: "deflectAttack",
         label: "Deflect",
-        interrupt: ["combat-response"],
+        interrupt: ["combatResponse"],
         reactive: {
-          trigger: "deal-damage",
+          trigger: "dealDamage",
           timing: "before",
         },
         inputs: [
@@ -179,26 +174,26 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
         id: "resilience",
         label: "Resilience",
         reactive: {
-          trigger: "take-damage",
+          trigger: "takeDamage",
           timing: "after",
         },
-        effects: [{ ref: "heal-one-hp" }],
+        effects: [{ ref: "healOneHp" }],
       },
 
       // Mixed effects list — ref + inline
       {
-        id: "power-move",
+        id: "powerMove",
         label: "Power Move",
         effects: [
-          { ref: "shuffle-cup" },
-          { kind: "roll", pieces: { inventory: "player-tray", select: "all" } },
-          { ref: "resolve-challenge" },
+          { ref: "shuffleCup" },
+          { kind: "roll", pieces: { inventory: "playerTray", select: "all" } },
+          { ref: "resolveChallenge" },
         ],
       },
 
       // All input types exercised
       {
-        id: "configure-game",
+        id: "configureGame",
         label: "Configure",
         inputs: [
           { id: "rounds", type: { kind: "number", min: 1, max: 10 } },
@@ -207,7 +202,7 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
           { id: "hardcore", type: { kind: "boolean" } },
           { id: "variant", type: { kind: "enum", values: ["classic", "speed", "team"] } },
         ],
-        effects: [{ ref: "apply-config" }],
+        effects: [{ ref: "applyConfig" }],
       },
     ],
   };
@@ -220,14 +215,14 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
   it("preserves action ids", () => {
     const result = ok(validModule);
     const ids = result.actions.map((a) => a.id);
-    expect(ids).toContain("make-bid");
+    expect(ids).toContain("makeBid");
     expect(ids).toContain("challenge");
-    expect(ids).toContain("deflect-attack");
+    expect(ids).toContain("deflectAttack");
   });
 
   it("preserves inputs on make-bid", () => {
     const result = ok(validModule);
-    const bid = result.actions.find((a) => a.id === "make-bid")!;
+    const bid = result.actions.find((a) => a.id === "makeBid")!;
     expect(bid.inputs).toHaveLength(2);
     expect(bid.inputs![0].id).toBe("quantity");
     expect(bid.inputs![0].type.kind).toBe("number");
@@ -235,21 +230,21 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
 
   it("preserves { param } in inline effects", () => {
     const result = ok(validModule);
-    const bid = result.actions.find((a) => a.id === "make-bid")!;
+    const bid = result.actions.find((a) => a.id === "makeBid")!;
     const firstEffect = bid.effects[0] as { kind: string; value: unknown };
     expect(firstEffect.value).toEqual({ param: "quantity" });
   });
 
-  it("preserves preconditions as JSONLogic object", () => {
+  it("preserves preconditions as infix expression string", () => {
     const result = ok(validModule);
     const challenge = result.actions.find((a) => a.id === "challenge")!;
-    expect(challenge.preconditions).toBeDefined();
+    expect(challenge.preconditions).toBe("game.inventory.currentBid.count != 0");
   });
 
   it("preserves reactive fields", () => {
     const result = ok(validModule);
-    const deflect = result.actions.find((a) => a.id === "deflect-attack")!;
-    expect(deflect.reactive?.trigger).toBe("deal-damage");
+    const deflect = result.actions.find((a) => a.id === "deflectAttack")!;
+    expect(deflect.reactive?.trigger).toBe("dealDamage");
     expect(deflect.reactive?.timing).toBe("before");
   });
 
@@ -261,31 +256,31 @@ describe("ActionsModuleSchema — Liar's Dice", () => {
 
   it("preserves interrupt subflow list", () => {
     const result = ok(validModule);
-    const block = result.actions.find((a) => a.id === "block-steal")!;
-    expect(block.interrupt).toEqual(["response-window"]);
+    const block = result.actions.find((a) => a.id === "blockSteal")!;
+    expect(block.interrupt).toEqual(["responseWindow"]);
   });
 
   it("preserves effect-originator input type", () => {
     const result = ok(validModule);
-    const deflect = result.actions.find((a) => a.id === "deflect-attack")!;
+    const deflect = result.actions.find((a) => a.id === "deflectAttack")!;
     const attackerInput = deflect.inputs!.find((i) => i.id === "attacker")!;
     expect(attackerInput.type.kind).toBe("effect-originator");
   });
 
   it("preserves oncePerTurn flag", () => {
     const result = ok(validModule);
-    const roll = result.actions.find((a) => a.id === "roll-dice")!;
+    const roll = result.actions.find((a) => a.id === "rollDice")!;
     expect(roll.oncePerTurn).toBe(true);
   });
 
   it("preserves requiredRoles", () => {
     const result = ok(validModule);
-    const peek = result.actions.find((a) => a.id === "peek-bid")!;
+    const peek = result.actions.find((a) => a.id === "peekBid")!;
     expect(peek.requiredRoles).toEqual(["spy"]);
   });
 
   it("accepts action with no inputs", () => {
-    const result = ok({ actions: [{ id: "pass", effects: [{ ref: "advance-turn" }] }] });
+    const result = ok({ actions: [{ id: "pass", effects: [{ ref: "advanceTurn" }] }] });
     expect(result.actions[0].inputs).toBeUndefined();
   });
 });
@@ -307,13 +302,13 @@ describe("ActionsModuleSchema — rejections", () => {
 
   it("rejects action missing required effects", () => {
     fail({
-      actions: [{ id: "no-effects" }],
+      actions: [{ id: "noEffects" }],
     });
   });
 
   it("rejects action with empty effects array", () => {
     fail({
-      actions: [{ id: "empty-effects", effects: [] }],
+      actions: [{ id: "emptyEffects", effects: [] }],
     });
   });
 
@@ -321,7 +316,7 @@ describe("ActionsModuleSchema — rejections", () => {
     fail({
       actions: [
         {
-          id: "bad-input",
+          id: "badInput",
           inputs: [{ id: "x", type: { kind: "date" } }],
           effects: [{ ref: "something" }],
         },
@@ -333,7 +328,7 @@ describe("ActionsModuleSchema — rejections", () => {
     fail({
       actions: [
         {
-          id: "bad-enum",
+          id: "badEnum",
           inputs: [{ id: "choice", type: { kind: "enum", values: ["only-one"] } }],
           effects: [{ ref: "something" }],
         },
@@ -345,7 +340,7 @@ describe("ActionsModuleSchema — rejections", () => {
     fail({
       actions: [
         {
-          id: "bad-interrupt",
+          id: "badInterrupt",
           interrupt: [],
           effects: [{ ref: "something" }],
         },
@@ -357,8 +352,8 @@ describe("ActionsModuleSchema — rejections", () => {
     fail({
       actions: [
         {
-          id: "bad-reactive",
-          reactive: { trigger: "some-effect", timing: "during" },
+          id: "badReactive",
+          reactive: { trigger: "someEffect", timing: "during" },
           effects: [{ ref: "something" }],
         },
       ],
@@ -369,7 +364,7 @@ describe("ActionsModuleSchema — rejections", () => {
     fail({
       actions: [
         {
-          id: "bad-reactive",
+          id: "badReactive",
           reactive: { timing: "before" },
           effects: [{ ref: "something" }],
         },
@@ -391,15 +386,15 @@ describe("ActionsModuleSchema — selection inputs", () => {
           inputs: [
             {
               id: "card",
-              type: { kind: "gamepiece-select", inventory: "player-hand" },
+              type: { kind: "gamepiece-select", inventory: "playerHand" },
               label: "Choose card",
             },
           ],
           effects: [
             {
               kind: "move",
-              from: { inventory: "player-hand", select: { id: { param: "card" } } },
-              to: { inventory: "discard-pile" },
+              from: { inventory: "playerHand", select: { id: { param: "card" } } },
+              to: { inventory: "discardPile" },
             },
           ],
         },
@@ -415,11 +410,11 @@ describe("ActionsModuleSchema — selection inputs", () => {
           inputs: [
             {
               id: "picks",
-              type: { kind: "gamepiece-select", inventory: "draft-hand", ofType: "card", count: 2 },
+              type: { kind: "gamepiece-select", inventory: "draftHand", ofType: "card", count: 2 },
               label: "Choose 2 cards",
             },
           ],
-          effects: [{ ref: "add-to-hand" }],
+          effects: [{ ref: "addToHand" }],
         },
       ],
     });
@@ -438,15 +433,15 @@ describe("ActionsModuleSchema — selection inputs", () => {
             },
             {
               id: "card",
-              type: { kind: "gamepiece-select", inventory: "player-hand", fromPlayer: { param: "target" } },
+              type: { kind: "gamepiece-select", inventory: "playerHand", fromPlayer: { param: "target" } },
               label: "Choose card to steal",
             },
           ],
           effects: [
             {
               kind: "move",
-              from: { player: { param: "target" }, inventory: "player-hand", select: { id: { param: "card" } } },
-              to: { inventory: "player-hand" },
+              from: { player: { param: "target" }, inventory: "playerHand", select: { id: { param: "card" } } },
+              to: { inventory: "playerHand" },
             },
           ],
         },
@@ -458,11 +453,11 @@ describe("ActionsModuleSchema — selection inputs", () => {
     ok({
       actions: [
         {
-          id: "play-card",
+          id: "playCard",
           inputs: [
             {
               id: "card",
-              type: { kind: "gamepiece-select", inventory: "player-hand", fromPlayer: "self" },
+              type: { kind: "gamepiece-select", inventory: "playerHand", fromPlayer: "self" },
             },
           ],
           effects: [{ ref: "play" }],
@@ -471,18 +466,18 @@ describe("ActionsModuleSchema — selection inputs", () => {
     });
   });
 
-  it("accepts gamepiece-select with JsonLogic filter", () => {
+  it("accepts gamepiece-select with expression filter", () => {
     ok({
       actions: [
         {
-          id: "select-creature",
+          id: "selectCreature",
           inputs: [
             {
               id: "creature",
               type: {
                 kind: "gamepiece-select",
                 inventory: "battlefield",
-                filter: { ">=": [{ var: "piece.property.hp" }, 1] },
+                filter: "piece.property.hp >= 1",
               },
             },
           ],
@@ -496,7 +491,7 @@ describe("ActionsModuleSchema — selection inputs", () => {
     ok({
       actions: [
         {
-          id: "target-player",
+          id: "targetPlayer",
           inputs: [
             {
               id: "opponent",
@@ -504,23 +499,23 @@ describe("ActionsModuleSchema — selection inputs", () => {
               label: "Choose opponent",
             },
           ],
-          effects: [{ ref: "attack-player" }],
+          effects: [{ ref: "attackPlayer" }],
         },
       ],
     });
   });
 
-  it("accepts player-select with JsonLogic filter", () => {
+  it("accepts player-select with expression filter", () => {
     ok({
       actions: [
         {
-          id: "heal-ally",
+          id: "healAlly",
           inputs: [
             {
               id: "ally",
               type: {
                 kind: "player-select",
-                filter: { "<": [{ var: "player.property.hp" }, { var: "player.property.maxHp" }] },
+                filter: "player.property.hp < player.property.maxHp",
               },
             },
           ],
@@ -542,7 +537,7 @@ describe("ActionsModuleSchema — selection inputs", () => {
             },
             {
               id: "cell",
-              type: { kind: "inventory-position", inventory: "battle-grid" },
+              type: { kind: "inventory-position", inventory: "battleGrid" },
               label: "Choose position",
             },
           ],
@@ -550,7 +545,7 @@ describe("ActionsModuleSchema — selection inputs", () => {
             {
               kind: "move",
               from: { inventory: "reserves", select: { id: { param: "unit" } } },
-              to: { inventory: "battle-grid", at: { param: "cell" } },
+              to: { inventory: "battleGrid", at: { param: "cell" } },
             },
           ],
         },
@@ -573,7 +568,7 @@ describe("ActionsModuleSchema — selection inputs", () => {
               type: { kind: "inventory-position", inventory: "board", fromPlayer: { param: "target" } },
             },
           ],
-          effects: [{ ref: "destroy-at" }],
+          effects: [{ ref: "destroyAt" }],
         },
       ],
     });
@@ -611,7 +606,7 @@ describe("ActionsModuleSchema — selection inputs", () => {
     ok({
       actions: [
         {
-          id: "update-chosen",
+          id: "updateChosen",
           inputs: [
             { id: "piece", type: { kind: "gamepiece-select", inventory: "board" } },
           ],
@@ -639,8 +634,8 @@ describe("ActionsModuleSchema — selection inputs", () => {
           effects: [
             {
               kind: "move",
-              from: { inventory: "player-hand", select: "top" },
-              to: { player: { param: "recipient" }, inventory: "player-hand" },
+              from: { inventory: "playerHand", select: "top" },
+              to: { player: { param: "recipient" }, inventory: "playerHand" },
             },
           ],
         },
@@ -656,8 +651,8 @@ describe("ActionsModuleSchema — selection inputs", () => {
           effects: [
             {
               kind: "move",
-              from: { inventory: "penalty-pool", select: "top" },
-              to: { player: { stateRef: "game.property.roundLoser" }, inventory: "player-hand" },
+              from: { inventory: "penaltyPool", select: "top" },
+              to: { player: { stateRef: "game.property.roundLoser" }, inventory: "playerHand" },
             },
           ],
         },
@@ -675,8 +670,8 @@ describe("ActionsModuleSchema — reactive input types", () => {
     const result = ok({
       actions: [
         {
-          id: "counter-attack",
-          reactive: { trigger: "deal-damage", timing: "after" },
+          id: "counterAttack",
+          reactive: { trigger: "dealDamage", timing: "after" },
           inputs: [
             { id: "attacker", type: { kind: "effect-originator" } },
           ],
@@ -699,14 +694,14 @@ describe("ActionsModuleSchema — reactive input types", () => {
       actions: [
         {
           id: "thorns",
-          reactive: { trigger: "deal-damage", timing: "after" },
+          reactive: { trigger: "dealDamage", timing: "after" },
           inputs: [
-            { id: "attacking-creature", type: { kind: "trigger-input", inputId: "creature" } },
+            { id: "attackingCreature", type: { kind: "trigger-input", inputId: "creature" } },
           ],
           effects: [
             {
               kind: "update",
-              pieces: { inventory: "battlefield", select: { id: { param: "attacking-creature" } } },
+              pieces: { inventory: "battlefield", select: { id: { param: "attackingCreature" } } },
               property: "hp",
               value: { delta: -2 },
             },
@@ -722,12 +717,12 @@ describe("ActionsModuleSchema — reactive input types", () => {
     fail({
       actions: [
         {
-          id: "bad-trigger",
-          reactive: { trigger: "deal-damage", timing: "after" },
+          id: "badTrigger",
+          reactive: { trigger: "dealDamage", timing: "after" },
           inputs: [
             { id: "x", type: { kind: "trigger-input" } },
           ],
-          effects: [{ ref: "some-effect" }],
+          effects: [{ ref: "someEffect" }],
         },
       ],
     });
@@ -738,7 +733,7 @@ describe("ActionsModuleSchema — reactive input types", () => {
       actions: [
         {
           id: "brace",
-          reactive: { trigger: "deal-damage", timing: "before" },
+          reactive: { trigger: "dealDamage", timing: "before" },
           effects: [
             { kind: "adjust", adjustment: { delta: 2 } },
           ],
@@ -753,7 +748,7 @@ describe("ActionsModuleSchema — reactive input types", () => {
       actions: [
         {
           id: "block",
-          reactive: { trigger: "deal-damage", timing: "before" },
+          reactive: { trigger: "dealDamage", timing: "before" },
           effects: [
             { kind: "cancel-effect" },
           ],
@@ -767,8 +762,8 @@ describe("ActionsModuleSchema — reactive input types", () => {
     const result = ok({
       actions: [
         {
-          id: "shield-block",
-          reactive: { trigger: "deal-damage", timing: "before" },
+          id: "shieldBlock",
+          reactive: { trigger: "dealDamage", timing: "before" },
           effects: [
             { kind: "adjust", adjustment: { mult: 0.5 } },
           ],

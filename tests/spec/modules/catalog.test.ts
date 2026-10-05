@@ -62,11 +62,11 @@ describe("CatalogModuleSchema — Liar's Dice", () => {
 describe("CatalogModuleSchema — Chess subset", () => {
   const chessCatalog = {
     entries: [
-      { id: "white-king", typeId: "king", properties: { color: "white" } },
-      { id: "white-queen", typeId: "queen", properties: { color: "white" } },
+      { id: "whiteKing", typeId: "king", properties: { color: "white" } },
+      { id: "whiteQueen", typeId: "queen", properties: { color: "white" } },
       { typeId: "pawn", quantity: 8, properties: { color: "white" } },
       { typeId: "pawn", quantity: 8, properties: { color: "black" } },
-      { id: "black-king", typeId: "king", properties: { color: "black" } },
+      { id: "blackKing", typeId: "king", properties: { color: "black" } },
     ],
   };
 
@@ -77,8 +77,8 @@ describe("CatalogModuleSchema — Chess subset", () => {
 
   it("preserves named piece id", () => {
     const result = ok(chessCatalog);
-    expect(result.entries[0].id).toBe("white-king");
-    expect(result.entries[4].id).toBe("black-king");
+    expect(result.entries[0].id).toBe("whiteKing");
+    expect(result.entries[4].id).toBe("blackKing");
   });
 
   it("preserves string property value", () => {
@@ -105,8 +105,8 @@ describe("CatalogModuleSchema — Chess subset", () => {
 describe("CatalogModuleSchema — Card game", () => {
   const cardCatalog = {
     entries: [
-      { typeId: "playing-card", properties: { rank: "2", suit: "hearts" } },
-      { typeId: "playing-card", properties: { rank: "ace", suit: "spades" } },
+      { typeId: "playingCard", properties: { rank: "2", suit: "hearts" } },
+      { typeId: "playingCard", properties: { rank: "ace", suit: "spades" } },
     ],
   };
 
@@ -130,9 +130,9 @@ describe("CatalogModuleSchema — Card game", () => {
 describe("CatalogModuleSchema — Resource game", () => {
   const resourceCatalog = {
     entries: [
-      { typeId: "gold-coin", quantity: 30 },
-      { typeId: "wood-token", quantity: 20 },
-      { typeId: "food-token", quantity: 25 },
+      { typeId: "goldCoin", quantity: 30 },
+      { typeId: "woodToken", quantity: 20 },
+      { typeId: "foodToken", quantity: 25 },
       { typeId: "settlement", quantity: 20 },
     ],
   };
@@ -157,13 +157,13 @@ describe("CatalogModuleSchema — Werewolf", () => {
   it("parses werewolf catalog with role-specific item counts", () => {
     const result = ok({
       entries: [
-        { typeId: "kill-card", quantity: 1 },
-        { typeId: "heal-potion", quantity: 2 },
-        { typeId: "vote-token", quantity: 10 },
+        { typeId: "killCard", quantity: 1 },
+        { typeId: "healPotion", quantity: 2 },
+        { typeId: "voteToken", quantity: 10 },
       ],
     });
     expect(result.entries).toHaveLength(3);
-    expect(result.entries[0].typeId).toBe("kill-card");
+    expect(result.entries[0].typeId).toBe("killCard");
     expect(result.entries[2].quantity).toBe(10);
   });
 });
@@ -190,7 +190,7 @@ describe("CatalogModuleSchema — property value types", () => {
 
   it("parses string (enum) property", () => {
     const result = ok({
-      entries: [{ typeId: "playing-card", properties: { suit: "hearts", rank: "ace" } }],
+      entries: [{ typeId: "playingCard", properties: { suit: "hearts", rank: "ace" } }],
     });
     expect((result.entries[0].properties as any).suit).toBe("hearts");
   });
@@ -245,10 +245,10 @@ describe("CatalogModuleSchema — actionBindings", () => {
     const result = ok({
       entries: [{
         typeId: "card",
-        actionBindings: { "play-effect": "play-strike" },
+        actionBindings: { "playEffect": "playStrike" },
       }],
     });
-    expect(result.entries[0].actionBindings!["play-effect"]).toBe("play-strike");
+    expect(result.entries[0].actionBindings!["playEffect"]).toBe("playStrike");
   });
 
   it("accepts an inline action binding", () => {
@@ -257,7 +257,7 @@ describe("CatalogModuleSchema — actionBindings", () => {
         typeId: "card",
         properties: { name: "Fireball" },
         actionBindings: {
-          "play-effect": {
+          "playEffect": {
             label: "Play Fireball",
             effects: [
               { kind: "set-state", path: "game.property.enemyHp", value: { delta: -8 } },
@@ -266,7 +266,7 @@ describe("CatalogModuleSchema — actionBindings", () => {
         },
       }],
     });
-    const binding = result.entries[0].actionBindings!["play-effect"] as any;
+    const binding = result.entries[0].actionBindings!["playEffect"] as any;
     expect(binding.label).toBe("Play Fireball");
   });
 
@@ -275,7 +275,7 @@ describe("CatalogModuleSchema — actionBindings", () => {
       entries: [{
         typeId: "creature",
         actionBindings: {
-          "attack": "melee-attack",
+          "attack": "meleeAttack",
           "special": "fireball",
         },
       }],
@@ -299,10 +299,10 @@ describe("CatalogModuleSchema — passiveBindings", () => {
       entries: [{
         typeId: "equipment",
         properties: { name: "Iron Armor" },
-        passiveBindings: { "worn-passive": "armor-absorb" },
+        passiveBindings: { "wornPassive": "armorAbsorb" },
       }],
     });
-    expect(result.entries[0].passiveBindings!["worn-passive"]).toBe("armor-absorb");
+    expect(result.entries[0].passiveBindings!["wornPassive"]).toBe("armorAbsorb");
   });
 
   it("accepts an inline passive binding (attenuate)", () => {
@@ -311,7 +311,7 @@ describe("CatalogModuleSchema — passiveBindings", () => {
         typeId: "equipment",
         properties: { name: "Vampiric Blade" },
         passiveBindings: {
-          "worn-passive": {
+          "wornPassive": {
             trigger: { kind: "state-write", scope: "actor", path: "player.property.hp", direction: "decrease" },
             effects: [
               { kind: "set-state", path: "player.property.hp", value: { delta: 1 } },
@@ -320,7 +320,7 @@ describe("CatalogModuleSchema — passiveBindings", () => {
         },
       }],
     });
-    const binding = result.entries[0].passiveBindings!["worn-passive"] as any;
+    const binding = result.entries[0].passiveBindings!["wornPassive"] as any;
     expect(binding.trigger.scope).toBe("actor");
   });
 
@@ -329,14 +329,14 @@ describe("CatalogModuleSchema — passiveBindings", () => {
       entries: [{
         typeId: "equipment",
         passiveBindings: {
-          "worn-passive": {
+          "wornPassive": {
             trigger: { kind: "state-write", scope: "target", path: "player.property.hp", direction: "decrease" },
             effects: [{ kind: "cancel-effect" }],
           },
         },
       }],
     });
-    const binding = result.entries[0].passiveBindings!["worn-passive"] as any;
+    const binding = result.entries[0].passiveBindings!["wornPassive"] as any;
     expect(binding.effects[0].kind).toBe("cancel-effect");
   });
 
@@ -350,8 +350,8 @@ describe("CatalogModuleSchema — passiveBindings", () => {
       entries: [{
         typeId: "equipment",
         passiveBindings: {
-          "worn-passive": {
-            trigger: ["deal-damage"],
+          "wornPassive": {
+            trigger: ["dealDamage"],
             scope: "owner-targeted",
             effects: [],
           },
